@@ -1,2 +1,5 @@
 msg = "Hello Jakob"
 println(msg)
+
+b = 4
+using JuMP
