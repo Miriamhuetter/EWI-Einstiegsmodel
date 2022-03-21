@@ -3,3 +3,4 @@ println(msg)
 
 b = 4
 using JuMP
+a = 2
