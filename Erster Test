@@ -1,2 +1,3 @@
 msg = "Hello Jakob"
 println(msg)
+a = 2
