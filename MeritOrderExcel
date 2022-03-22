@@ -19,26 +19,35 @@ println(Nachfrage)
 println()
 
 println("Size of Leistungs-Matrix: ", size(Kraftwerkstyp)) #Gebe die Größe der Tabelle Kraftwerkstyp aus -> n wird anschließend für die definition Range verwendet
-n, m = size(Kraftwerkstyp) #n Anzahl der Kraftwerkskategorien (Anzahl an Zeilen)
+n_kraft, m_kraft = size(Kraftwerkstyp) #n Anzahl der Kraftwerkskategorien (Anzahl an Zeilen)
+n_zeit, m_zeit = size(Nachfrage)
 
-function meritOrder(D) #Name der Funktion in Abhängigkeit von D=Demand
-    model = Model(CPLEX.Optimizer)
+k = Array(Kraftwerkstyp)[:,1]
+t = Array(Nachfrage)[:,1]
+cost = Array(Kosten)[:,1]
+Demand = Array(Nachfrage)[:,2]
+capacity = Array(Leistung)[:, end]
 
-    @variable(model, x[1:n] >= 0) #Anzahl der Variablen = Anzahl der Kraftwerkskategorien
-    @constraint(model, c1, sum(x) == D) #Nebenbedingung 1: Summe der verwendeten Kraftwerkskapazität muss gleich dem Bedarf sein
-    @constraint(model, c2, x .<= Array(Leistung)[:,end]) #Nebenbedingung 2: Die eingesetzte Kraftwerksleistung des Kraftwerks x, darf dessen installierte Leistung nicht überschreiten
-    @objective(model, Min, Array(Kosten)[:,end]'*x) #Zielfunktion: Kosten sollen minimiert werden
+model = Model(CPLEX.Optimizer)
+@variable(model, x[1:n_zeit, 1:n_kraft] >= 0) #Anzahl der Variablen = Anzahl der Kraftwerkskategorien
+@objective(model, Min, sum(cost[k] * x[t, k] for t in 1:n_zeit, k in 1:n_kraft))
+@constraint(model, c1, sum(x[k] for k in 1:n_kraft) == Demand[1])
+@constraint(model, c2, x[k] .<= capacity)
 
-    print(model)
-    optimize!(model)
-
-    return @show value.(x), @show objective_value(model), @show shadow_price(c1) #Zeige die eingesetzten Kraftwerkskapazität je Kraftwerkskategorie, zeige die Gesamtkosten der Zielfunktion, zeige den Strompreis
+for t in 1:n_zeit
+    Summe = sum(x[k] for k in 1:n_kraft)
+    println(Summe)
 end
 
 
+
+print(model)
+optimize!(model)
+@show value.(x)
+
 x_results = Array{Float64}[] #Erstelle eine leere Liste für die Ergebnisse mit Datentyp Float64
     
-    for D in Array(Nachfrage)[:,end] #Betrachtung zu unterschiedlichen Zeitpunkten mit unterschiedlicher Nachfrage (siehe Tabellenblatt in Excel)
+    for D in Array(Nachfrage)[:,2] #Betrachtung zu unterschiedlichen Zeitpunkten mit unterschiedlicher Nachfrage (siehe Tabellenblatt in Excel)
         Werte, objective = meritOrder(D) #Aufteilen des Return Befehls in Werte (x Variablen) und objective (=Objektive Value und Shadow price)
         push!(x_results, Werte) #Die Ergebnisse "Werte" werden in die zuvor erstellte Liste übertragen ohne objective_value und shadow_price
     end
