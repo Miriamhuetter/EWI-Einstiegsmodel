@@ -54,6 +54,7 @@ MO_Ergebnisse = DataFrame(Kraftwerkeinsatz, Ueberschriften) #Ausgabe der Ergebni
 XLSX.writetable("Ergebnisse.xlsx", MO_Ergebnisse) 
 
 #Zeitkomponente einfügen
+a = 1 
 #for Schleife in function einbauen
 #Matching Brennstoffkosten zu Kraftwerkstyp
 #Variablenanzeiger VS
