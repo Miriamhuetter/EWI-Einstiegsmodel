@@ -42,7 +42,6 @@ cap_matrix[:,10] .= capacity[10]
 
 cap_matrix
 
-
 model = Model(CPLEX.Optimizer)
 @variable(model, x[1:n_zeit, 1:n_kraft] >= 0) #Anzahl der Variablen = Anzahl der Kraftwerkskategorien
 @objective(model, Min, sum(cost[k] * x[t, k] for t in 1:n_zeit, k in 1:n_kraft))
@@ -51,30 +50,13 @@ model = Model(CPLEX.Optimizer)
 
 print(model)
 optimize!(model)
-@show value.(x)
-@show objective_value(model) 
-
-x[:,1] <= 
-
-x_results = Array{Float64}[] #Erstelle eine leere Liste für die Ergebnisse mit Datentyp Float64
-    
-    for D in Array(Nachfrage)[:,2] #Betrachtung zu unterschiedlichen Zeitpunkten mit unterschiedlicher Nachfrage (siehe Tabellenblatt in Excel)
-        Werte, objective = meritOrder(D) #Aufteilen des Return Befehls in Werte (x Variablen) und objective (=Objektive Value und Shadow price)
-        push!(x_results, Werte) #Die Ergebnisse "Werte" werden in die zuvor erstellte Liste übertragen ohne objective_value und shadow_price
-    end
-x_results #Die Ergebnisliste wird ausgegeben
-
-Kraftwerkeinsatz = transpose(reduce(hcat, x_results)) #Änderung der x_results in ein Matrix Format
+Werte = @show value.(x)
+obj_value = @show objective_value(model) 
 
 Ueberschriften = Kraftwerkstyp.Kraftwerkstyp #Umwandlung von Kraftwerkstyp als Matrix (Aus Exceltabelle) in einen Vector
+Ergebnisse = DataFrame(Werte, Ueberschriften)
 
-MO_Ergebnisse = DataFrame(Kraftwerkeinsatz, Ueberschriften) #Ausgabe der Ergebnisse x_results mit Verbindung zu den Überschriften als Tabelle 
+XLSX.writetable("Ergebnisse2.xlsx", Ergebnisse) 
 
-#Ergebnisse in Excel exportieren
-XLSX.writetable("Ergebnisse.xlsx", MO_Ergebnisse) 
-
-#Zeitkomponente einfügen
-a = 1 
-#for Schleife in function einbauen
 #Matching Brennstoffkosten zu Kraftwerkstyp
 #Variablenanzeiger VS
