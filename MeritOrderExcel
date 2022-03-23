@@ -41,7 +41,8 @@ el_price = @show shadow_price.(c1) #Strompreis in jeder Stunde des Jahres
 #Ausgabe der Ergebnisse als Excel
 header = Kraftwerkstyp.Kraftwerkstyp #Umwandlung von Kraftwerkstyp als Matrix (Aus Exceltabelle) in einen Vector
 results = DataFrame(x_results, header)
-XLSX.writetable("Ergebnisse.xlsx", results) 
+rm("Ergebnisse.xlsx", force=true) #Lösche die alte, bereits bestehende Excel-Ergebnisliste
+XLSX.writetable("Ergebnisse.xlsx", results) #Erstelle eine neue Ergebnisliste
 
 #To Do:
 #Matching Brennstoffkosten zu Kraftwerkstyp
