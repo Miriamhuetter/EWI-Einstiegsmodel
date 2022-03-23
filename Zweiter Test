@@ -1,4 +1,0 @@
-msg = "Ich liebe programmieren"
-d = 13
-
-Println(msg)
