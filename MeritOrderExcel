@@ -1,0 +1,48 @@
+#Extensions
+using JuMP
+using CPLEX
+using XLSX, DataFrames
+
+#Rufe die Excelliste "MeritOrder_Excel" und das entsprechende Tabellenblatt ab. Der Datentyp der Tabellenblatt-Inhalte wird ebenfalls definiert
+Kraftwerkstyp = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Kraftwerke")...) .|> string
+Kapazität = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Leistung")...) .|> float 
+Kosten = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Kosten")...) .|> float
+Nachfrage = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Nachfrage")...) .|> float
+
+#Größe der Excel-Tabellen Kraftwerke und Nachfrage - Anzahl Kraftwerkstypen und Anzahl Stunden (Anzahl Zeilen der Tabellen) werden später benötigt
+n_kraft, m_kraft = size(Kraftwerkstyp) 
+n_zeit, m_zeit = size(Nachfrage)
+
+#Umwandeln der Excel-Inputs (Grenzkosten, Nachfrage, inst. Kapazität) in eindimensionale Arrays
+cost = Array(Kosten)[:,1]
+demand = Array(Nachfrage)[:,2]
+capacity = Array(Kapazität)[:, end]
+
+#Hilfsschritt für c2: Erstellen einer Matrix, welche für jeden Kraftwerkstyp in jeder Stunde die Leistung auf die installierte Kapazität beschränkt (Leistung = abgerufene Kapazität)
+cap_matrix = zeros(n_zeit,n_kraft) #Erstellen einer leeren Matrix, Anzahl Zeilen entsprechen Stunden im Jahr, Anzahl Spalten entsprechen Kraftwerkstypen
+    for j in 1:n_kraft 
+        cap_matrix[:,j] .= capacity[j] #Befüllen der Matrix mit installierter Kapazität je Kraftwerkstyp
+    end
+cap_matrix
+
+#Festlegen der Modelleigenschaften mit Variablen, Zielfunktion und Nebenbedingungen
+model = Model(CPLEX.Optimizer)
+@variable(model, x[1:n_zeit, 1:n_kraft] >= 0) #Definition der Variable x für die Leistung je Kraftwerkskategorie und Stunde; Anzahl der Variablen = Anzahl an Stunden * Anzahl der Kraftwerkskategorien
+@objective(model, Min, sum(cost[k] * x[t, k] for t in 1:n_zeit, k in 1:n_kraft)) #Zielfunktion: Multipliziere für jede Kraftwerkskategorie die Grenzkosten mit der eingesetzten Leistung in jeder Stunde -> Minimieren
+@constraint(model, c1, sum(x[:,k] for k in 1:n_kraft) .== demand[1:end]) #Nebenbedingung 1: Summe der Leistungen aller Kraftwerkskategorien muss in jeder Stunde der Nachfrage entsprechen
+@constraint(model, c2, x .<= cap_matrix) #Nebenbedingung 2: Jede Leistung wird auf die Kapazität je Kraftwerkskategorie begrenzt
+
+#Modelloptimierung und Ergebnisausgabe
+optimize!(model)
+x_results = @show value.(x) #Matrix aller Leistungen
+obj_value = @show objective_value(model) #Minimierte Gesamtkosten der Stromerzeugung im gesamten Jahr
+el_price = @show shadow_price.(c1) #Strompreis in jeder Stunde des Jahres
+
+#Ausgabe der Ergebnisse als Excel
+header = Kraftwerkstyp.Kraftwerkstyp #Umwandlung von Kraftwerkstyp als Matrix (Aus Exceltabelle) in einen Vector
+results = DataFrame(x_results, header)
+XLSX.writetable("Ergebnisse.xlsx", results) 
+
+#To Do:
+#Matching Brennstoffkosten zu Kraftwerkstyp
+#Variablenanzeiger VS
