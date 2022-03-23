@@ -4,17 +4,20 @@ using CPLEX
 using XLSX, DataFrames
 
 #Rufe die Excelliste "MeritOrder_Excel" und das entsprechende Tabellenblatt ab. Der Datentyp der Tabellenblatt-Inhalte wird ebenfalls definiert
-Kraftwerkstyp = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Kraftwerke")...) .|> string
-Kapazität = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Kapazität")...) .|> float
-Kosten = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Kosten")...) .|> float
+Kraftwerke = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Kraftwerke")...) .|> string
+Brennstoffe = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Brennstoffe")...) .|> string 
 Nachfrage = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Nachfrage")...) .|> float
 
 #Größe der Excel-Tabellen Kraftwerke und Nachfrage - Anzahl Kraftwerkstypen und Anzahl Stunden (Anzahl Zeilen der Tabellen) werden später benötigt
-n_kraft, m_kraft = size(Kraftwerkstyp)
+n_kraft, m_kraft = size(Kraftwerkstyp) 
 n_zeit, m_zeit = size(Nachfrage)
 
 #Umwandeln der Excel-Inputs (Grenzkosten, Nachfrage, inst. Kapazität) in eindimensionale Arrays
-cost = Array(Kosten)[:,1]
+function cost(powerplant)
+    for powerplant in Array(Kraftwerke)[:,1]
+            
+end
+
 demand = Array(Nachfrage)[:,2]
 capacity = Array(Kapazität)[:, end]
 header = Kraftwerkstyp.Kraftwerkstyp #Umwandlung von Kraftwerkstyp als Matrix (Aus Exceltabelle) in einen Vector
