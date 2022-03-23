@@ -5,7 +5,7 @@ using XLSX, DataFrames
 
 #Rufe die Excelliste "MeritOrder_Excel" und das entsprechende Tabellenblatt ab. Der Datentyp der Tabellenblatt-Inhalte wird ebenfalls definiert
 Kraftwerkstyp = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Kraftwerke")...) .|> string
-Kapazität = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Leistung")...) .|> float 
+Kapazität = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Kapazität")...) .|> float 
 Kosten = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Kosten")...) .|> float
 Nachfrage = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Nachfrage")...) .|> float
 
