@@ -23,7 +23,7 @@ function PP(g) #g = Laufvariable durch alle Kraftwerkskategorien hindurch
     p_f = Energieträger[1, f] #Preis je Brennstoff und Brennstoff hängt über f von Kraftwerkskategorie ab
     e_f = Energieträger[2, f] #Emissionsfaktor des Brennstoffes
     p_e = CO2_Preis[1, 1] #CO2-Preis
-    a_f = Verfügbarkeit[:, f]
+    a_f = Verfügbarkeit[:, f] #Gebe die ganze Spalte je nach Brennstoffart aus
 
 
     p_el = (p_f / η) + (e_f / η) * p_e #p_el = Grenzkosten
@@ -34,22 +34,23 @@ end
 costs = [] #Leere Matrix für Grenzkosten wird erstellt
 powerplants = [] #Leere Matrix für Kraftwerkskategorien wird erstellt
 capacity = [] #Leere Matrix für capacity wird erstellt
-avail = []
+avail = [] #Leere Matrix für availability wird erstellt
 
     for g in 1:n_kraft
         A, p_el, C, a_f = PP(g) #Returnwerte der Funktion PP
         push!(costs, p_el) #Die Returnwerte von p_el sollen in die Matrix costs übergeben werden
         push!(powerplants, A) #Die Returnwerte von A sollen in die Matrix powerplants übergeben werden
         push!(capacity, C) #Die Returnwerte von C sollen in die Matrix capacity übergeben werden
-        push!(avail, a_f)
+        push!(avail, a_f) #Die Returnwerte von a_f sollen in die Matrix availability übergeben werden
     end
 
 #Konvertieren der Datentypen von den Ausgabematrizen 
 convert(Array{Float64, 1}, costs) 
 convert(Array{String, 1}, powerplants)
 convert(Array{Float64, 1}, capacity)
-availability = reduce(hcat, avail)
-powerplants
+availability = reduce(hcat, avail) #Die Verfügbarkeit der einzelnen Kraftwerke wird durch reduce und hcat in die richtige Form gebracht (Entspricht der Matrix Form der Ergebnistabelle am Ende)
+
+
 demand = Array(Nachfrage)[:,2]
 #header = Kraftwerkstyp.Kraftwerkstyp #Umwandlung von Kraftwerkstyp als Matrix (Aus Exceltabelle) in einen Vector
 
@@ -60,7 +61,7 @@ model = Model(CPLEX.Optimizer)
 #constraint über ein set definieren
 @constraint(model, c1[t = 1:n_zeit], sum(x[t,:]) == demand[t])
 @constraint(model, c2[t = 1:n_zeit, k = 1:n_kraft], x[t, k] .<= capacity[k]*availability[t, k]) #Die Nebenbedingung 2 ist abhängig von den sets/Mengen "Zeit als Zeilen und den Kraftwerkskategorien als Spalten, ...
-# ... die Leistung je Stunde und Kraftwerkskategorie muss kleiner sein als die installierte Kapazität je Kraftwerkskategorie
+# ... die Leistung je Stunde und Kraftwerkskategorie muss kleiner sein als die installierte Kapazität je Kraftwerkskategorie multipliziert mit dessen Verfügbarkeit zu der betrachteten Stunde
 
 # Modelloptimierung und Ergebnisausgabe
 optimize!(model)
@@ -75,7 +76,7 @@ rm("Ergebnisse.xlsx", force=true) #Lösche die alte, bereits bestehende Excel-Er
 XLSX.writetable("Ergebnisse.xlsx", results) #Erstelle eine neue Ergebnisliste
 
 # To Do:
-# Erneuerbare einfügen in Supply die availability einbinden, die für fossile immer 1 ist und für EE je Stunde immer variiert
+
 ## (Dummy-)Speicher ODER
 ## Handel zwischen Ländern
 # Invest Brounfield, Greenfield -> Investitionskosten einpflegen (Daten von Berit und Philipp)
