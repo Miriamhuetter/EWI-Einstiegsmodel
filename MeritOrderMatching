@@ -5,9 +5,10 @@ using XLSX, DataFrames
 
 #Rufe die Excelliste "MeritOrder_Excel" und das entsprechende Tabellenblatt ab. Der Datentyp der Tabellenblatt-Inhalte wird ebenfalls definiert
 Kraftwerke = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Kraftwerke", infer_eltypes=true)...)
-Brennstoffe = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Brennstoffe", infer_eltypes=true)...)
+Energieträger = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Energieträger", infer_eltypes=true)...)
 Nachfrage = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Nachfrage")...) .|> float
 CO2_Preis = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "CO2-Preis")...) .|> float
+Verfügbarkeit = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Verfügbarkeit", infer_eltypes=true)...)
 
 #Größe der Excel-Tabellen Kraftwerke und Nachfrage - Anzahl Kraftwerkstypen und Anzahl Stunden (Anzahl Zeilen der Tabellen) werden später benötigt
 n_kraft, m_kraft = size(Kraftwerke) 
@@ -18,31 +19,37 @@ function PP(g) #g = Laufvariable durch alle Kraftwerkskategorien hindurch
     A = Kraftwerke[g, :Kraftwerke] #Parameter A wird der Name der Kraftwerkskategorien zugewiesen
     C = Kraftwerke[g, :Kapazität] #Parameter C wird der Wert der installierten Kapazität je Kraftwerkskategorie zugewiesen
     η = Kraftwerke[g, :Wirkungsgrad] #Parameter η wird der Wirkungsgrad je Kraftwerkskategorie zugewiesen
-    f = Kraftwerke[g, :Brennstoff] #Parameter f wird der Brennstoff je Kraftwerkskategorie zugewiesen
-    p_f = Brennstoffe[1, f] #Preis je Brennstoff und Brennstoff hängt über f von Kraftwerkskategorie ab
-    e_f = Brennstoffe[2, f] #Emissionsfaktor des Brennstoffes
+    f = Kraftwerke[g, :Energieträger] #Parameter f wird der Brennstoff je Kraftwerkskategorie zugewiesen
+    p_f = Energieträger[1, f] #Preis je Brennstoff und Brennstoff hängt über f von Kraftwerkskategorie ab
+    e_f = Energieträger[2, f] #Emissionsfaktor des Brennstoffes
     p_e = CO2_Preis[1, 1] #CO2-Preis
+    a_f = Verfügbarkeit[:, f]
+
 
     p_el = (p_f / η) + (e_f / η) * p_e #p_el = Grenzkosten
-    return A, p_el, C #Das Resultat der Funktion PP sollen A und p_el sein
+    return A, p_el, C, a_f #Das Resultat der Funktion PP sollen A und p_el sein
 end
+
 
 costs = [] #Leere Matrix für Grenzkosten wird erstellt
 powerplants = [] #Leere Matrix für Kraftwerkskategorien wird erstellt
 capacity = [] #Leere Matrix für capacity wird erstellt
+avail = []
 
     for g in 1:n_kraft
-        A, p_el, C = PP(g) #Returnwerte der Funktion PP
+        A, p_el, C, a_f = PP(g) #Returnwerte der Funktion PP
         push!(costs, p_el) #Die Returnwerte von p_el sollen in die Matrix costs übergeben werden
         push!(powerplants, A) #Die Returnwerte von A sollen in die Matrix powerplants übergeben werden
         push!(capacity, C) #Die Returnwerte von C sollen in die Matrix capacity übergeben werden
+        push!(avail, a_f)
     end
 
 #Konvertieren der Datentypen von den Ausgabematrizen 
 convert(Array{Float64, 1}, costs) 
 convert(Array{String, 1}, powerplants)
 convert(Array{Float64, 1}, capacity)
-
+availability = reduce(hcat, avail)
+powerplants
 demand = Array(Nachfrage)[:,2]
 #header = Kraftwerkstyp.Kraftwerkstyp #Umwandlung von Kraftwerkstyp als Matrix (Aus Exceltabelle) in einen Vector
 
@@ -52,7 +59,7 @@ model = Model(CPLEX.Optimizer)
 @objective(model, Min, sum(costs[k] * x[t, k] for t in 1:n_zeit, k in 1:n_kraft)) #Zielfunktion: Multipliziere für jede Kraftwerkskategorie die Grenzkosten mit der eingesetzten Leistung in jeder Stunde -> Minimieren
 #constraint über ein set definieren
 @constraint(model, c1[t = 1:n_zeit], sum(x[t,:]) == demand[t])
-@constraint(model, c2[t = 1:n_zeit, k = 1:n_kraft], x[t, k] .<= capacity[k]) #Die Nebenbedingung 2 ist abhängig von den sets/Mengen "Zeit als Zeilen und den Kraftwerkskategorien als Spalten, ...
+@constraint(model, c2[t = 1:n_zeit, k = 1:n_kraft], x[t, k] .<= capacity[k]*availability[t, k]) #Die Nebenbedingung 2 ist abhängig von den sets/Mengen "Zeit als Zeilen und den Kraftwerkskategorien als Spalten, ...
 # ... die Leistung je Stunde und Kraftwerkskategorie muss kleiner sein als die installierte Kapazität je Kraftwerkskategorie
 
 # Modelloptimierung und Ergebnisausgabe
