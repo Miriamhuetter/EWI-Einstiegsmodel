@@ -3,16 +3,36 @@ using JuMP
 using CPLEX
 using XLSX, DataFrames
 
+countries = ["DE","FR","NL"]
+
 #Rufe die Excelliste "MeritOrder_Excel" und das entsprechende Tabellenblatt ab. Der Datentyp der Tabellenblatt-Inhalte wird ebenfalls definiert
-Kraftwerke = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Kraftwerke", infer_eltypes=true)...)
-Energieträger = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Energieträger", infer_eltypes=true)...)
-Nachfrage = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Nachfrage")...) .|> float
-CO2_Preis = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "CO2-Preis")...) .|> float
-Verfügbarkeit = DataFrame(XLSX.readtable("MeritOrder_Excel.xlsx", "Verfügbarkeit", infer_eltypes=true)...)
+Kraftwerke_alle = DataFrame(XLSX.readtable("MeritOrderHandel.xlsx", "Kraftwerke", infer_eltypes=true)...)
+Energieträger = DataFrame(XLSX.readtable("MeritOrderHandel.xlsx", "Energieträger", infer_eltypes=true)...)
+Nachfrage_alle = DataFrame(XLSX.readtable("MeritOrderHandel.xlsx", "Nachfrage")...) .|> float
+CO2_Preis = DataFrame(XLSX.readtable("MeritOrderHandel.xlsx", "CO2-Preis")...) .|> float
+Verfügbarkeit = DataFrame(XLSX.readtable("MeritOrderHandel.xlsx", "Verfügbarkeit", infer_eltypes=true)...)
+
+for c in countries
+
+function input(c) 
+
+Kraftwerke = filter(row -> row.Land == c, Kraftwerke_alle)
+Nachfrage = Nachfrage_alle[:,c]
+
+return Kraftwerke, Nachfrage, Nachfrage_alle
+end
+
+Kraftwerke, Nachfrage = input(c)
+Kraftwerke
+Nachfrage
+
+#for c in countries
+#    Kraftwerke, Nachfrage = input(c)
+#end
 
 #Größe der Excel-Tabellen Kraftwerke und Nachfrage - Anzahl Kraftwerkstypen und Anzahl Stunden (Anzahl Zeilen der Tabellen) werden später benötigt
 n_kraft, m_kraft = size(Kraftwerke) 
-n_zeit, m_zeit = size(Nachfrage)
+n_zeit, m_zeit = size(Nachfrage_alle)
 
 #Excelinputs werden weiter verarbeitet, unter anderem um Grenzkosten zu berechnen
 function PP(g) #g = Laufvariable durch alle Kraftwerkskategorien hindurch
@@ -51,7 +71,7 @@ convert(Array{Float64, 1}, capacity)
 availability = reduce(hcat, avail) #Die Verfügbarkeit der einzelnen Kraftwerke wird durch reduce und hcat in die richtige Form gebracht (Entspricht der Matrix Form der Ergebnistabelle am Ende)
 
 
-demand = Array(Nachfrage)[:,2]
+demand = Array(Nachfrage)
 #header = Kraftwerkstyp.Kraftwerkstyp #Umwandlung von Kraftwerkstyp als Matrix (Aus Exceltabelle) in einen Vector
 
 #Festlegen der Modelleigenschaften mit Variablen, Zielfunktion und Nebenbedingungen
@@ -71,9 +91,12 @@ el_price = @show shadow_price.(c1) #Strompreis in jeder Stunde des Jahres
 
 #Ausgabe der Ergebnisse als Excel
 
+Excelname = "Ergebnisse"*c*".xlsx"
 results = DataFrame(x_results, powerplants)
-rm("Ergebnisse.xlsx", force=true) #Lösche die alte, bereits bestehende Excel-Ergebnisliste
-XLSX.writetable("Ergebnisse.xlsx", results) #Erstelle eine neue Ergebnisliste
+rm(Excelname, force=true) #Lösche die alte, bereits bestehende Excel-Ergebnisliste
+XLSX.writetable(Excelname, results) #Erstelle eine neue Ergebnisliste
+
+end
 
 # To Do:
 
