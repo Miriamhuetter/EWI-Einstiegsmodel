@@ -26,17 +26,23 @@ k_set = Kraftwerke_df[:,:Kategorie]
 l_set = String.(names(Nachfrage_df)) #Länderbezeichnungen als Vektor
 
 # Dictionaries werden erstellt, welche benötigte Inhalte und Zuweisungen enthalten
-Wirkungsgrade = Dict(Kraftwerke_df[:,:Kategorie] .=> Kraftwerke_df[:,:Wirkungsgrad])
-Brennstoffe = Dict(Kraftwerke_df[:,:Kategorie] .=> Kraftwerke_df[:,:Energieträger])
+Wirkungsgrade = Dict(k_set .=> Kraftwerke_df[:,:Wirkungsgrad])
+Brennstoffe = Dict(k_set .=> Kraftwerke_df[:,:Energieträger])
 Brennstoffkosten = Dict(Energieträger_df[:, :Energieträger] .=> Energieträger_df[:,:Brennstoffkosten])
 Emissionsfaktor = Dict(Energieträger_df[:, :Energieträger] .=> Energieträger_df[:, :Emissionsfaktor])
-availability = Dict(Kraftwerke_df[:, :Kategorie] .=> Kraftwerke_df[:, :Verfügbarkeit])
+availability = Dict(k_set .=> Kraftwerke_df[:, :Verfügbarkeit])
 # Kapazitäten dicitionary wird je nach Land und Kraftwerkstyp erstellt
 Kapazität = Dict()
     for p in l_set
-        push!(Kapazität, p => Dict(Kraftwerke_df[:,:Kategorie] .=> Kapazität_df[:,p]),) 
+        push!(Kapazität, p => Dict(k_set .=> Kapazität_df[:,p]),) 
     end
 Kapazität
+# Nachfrage dictionary wird je nach Land und Stunde erstellt
+Nachfrage = Dict()
+    for p in l_set
+        push!(Nachfrage, p => Dict(t_set .=> Nachfrage_df[:,p]),)
+    end
+Nachfrage
 
 # Vorbereitung der Verfügbarkeit je Kraftwerkskategorie. 
 # Wind und Sonne sind in ihrer Verfügbarkeit abhängig von der Zeit im Jahr und vom Land
@@ -106,7 +112,7 @@ Emissionsfaktor #Nur um GK zu berechnen
 
 Grenzkosten #Brauchen wir im Modell
 
-Nachfrage_df #Abhängig von Zeit und Land -> fürs Modell
+Nachfrage #Abhängig von Zeit und Land -> fürs Modell
 Kapazität #Abhängig von Kategorie -> fürs Modell
 Verfügbarkeit #Abhängig von Kategorie -> fürs Modell
 
@@ -116,7 +122,7 @@ set_silent(model)
 
 @variable(model, x[t in t_set, k in k_set , l in l_set] >= 0) # Abgerufene Leistung ist abhängig von der Zeit, dem Kraftwerk und des Landes  
 @objective(model, Min, sum(Grenzkosten[k]*x[t,k,l] for t in t_set, k in k_set, l in l_set)) # Zielfunktion: Multipliziere für jede Kraftwerkskategorie die Grenzkosten mit der eingesetzten Leistung in jeder Stunde und abhängig vom Land -> Minimieren
-@constraint(model, c1[t in t_set, l in l_set], sum(x[t,:,l]) == Nachfrage_df[t,l]) # Die Summe der Leistungen über die Kraftwerkskategorien je Stunde darf nicht größer sein als die Nachfrage 
+@constraint(model, c1[t in t_set, l in l_set], sum(x[t,:,l]) == Nachfrage[l][t]) # Die Summe der Leistungen über die Kraftwerkskategorien je Stunde darf nicht größer sein als die Nachfrage 
 @constraint(model, c2[t in t_set, k in k_set, l in l_set], x[t,k,l] .<= Kapazität[l][k]*Verfügbarkeit[k][l][t]) # Die Leistung je Kraftwerkskategorie muss kleiner sein als die Kapazität...
 #...der Kraftwerkskategorie in dem betrachteten Land multipliziert mit der Verfügbarkeit -> Verwendung der Inhalte aus den Dictionaries
 
