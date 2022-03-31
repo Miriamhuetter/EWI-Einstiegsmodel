@@ -6,7 +6,7 @@ using XLSX, DataFrames
 #Info: installierte Kapazität = maximal abrufbare Leistung; 
 #      Leistung = eingesetzte Kapazität zu jeder Stunde
 
-#Rufe die Excelliste "MeritOrder_Excel" und das entsprechende Tabellenblatt ab. Der Datentyp der Tabellenblatt-Inhalte wird ebenfalls definiert
+#Rufe die Excelliste "MeritOrderLänder" und das entsprechende Tabellenblatt ab. Der Datentyp der Tabellenblatt-Inhalte wird ebenfalls definiert
 Kapazität_df = DataFrame(XLSX.readtable("MeritOrderLänder.xlsx", "Kapazität", infer_eltypes=true)...)
 Kraftwerke_df = DataFrame(XLSX.readtable("MeritOrderLänder.xlsx", "Kraftwerke", infer_eltypes=true)...)
 Energieträger_df = DataFrame(XLSX.readtable("MeritOrderLänder.xlsx", "Energieträger", infer_eltypes=true)...)
@@ -23,7 +23,7 @@ l = size(Nachfrage_df,2)
 # Dimensionen Zeit, Kraftwerkskategorien und Länder werden als Sets/Vektoren ausgegeben
 t_set = collect(1:t)
 k_set = Kraftwerke_df[:,:Kategorie]
-l_set = ["DE", "FR", "NL"]
+l_set = String.(names(Nachfrage_df)) #Länderbezeichnungen als Vektor
 
 # Dictionaries werden erstellt, welche benötigte Inhalte und Zuweisungen enthalten
 Wirkungsgrade = Dict(Kraftwerke_df[:,:Kategorie] .=> Kraftwerke_df[:,:Wirkungsgrad])
@@ -38,44 +38,35 @@ Kapazität = Dict()
     end
 Kapazität
 
-# Vorbereitung der Verfügbarkeit je Kraftwerkskategorie. Fossile Kraftwerke, Wasserkraft und Biomasse sind zu jeder Stunde zu 0,95% verfügbar. 
-# Wind und Sonne sind in ihrer Verfügbarkeit abhängig von der Zeit im Jahr
+# Vorbereitung der Verfügbarkeit je Kraftwerkskategorie. 
+# Wind und Sonne sind in ihrer Verfügbarkeit abhängig von der Zeit im Jahr und vom Land
 wind(l_set) = Wind_df[:,l_set]
 sonne(l_set) = Sonne_df[:,l_set]
-fossil = fill(0.95, (t))
+
 # Anlegen eines Dictionaries für die Verfügbarkeiten der Kraftwerke
-Verfügbarkeit = Dict(
-    "Kernenergie" => Dict(),
-    "Braunkohle_0" => Dict(),
-    "Braunkohle_-" => Dict(),
-    "Braunkohle_+" => Dict(),
-    "Steinkohle_0" => Dict(),
-    "Steinkohle_-" => Dict(),
-    "Steinkohle_+" => Dict(),
-    "Erdgas_0" => Dict(),
-    "Erdgas_-" => Dict(),
-    "Erdgas_+" => Dict(),
-    "Biomasse" => Dict(),
-    "Wasserkraft" => Dict(),
-    "Windkraft" => Dict(),
-    "PV" => Dict()
-)
+Verfügbarkeit = Dict()
+    for c in k_set
+        push!(Verfügbarkeit, c => Dict(),)
+    end
+Verfügbarkeit
+
     # Dicitionary Verfügbarkeit wird mit for Schleife gefüllt, je nach Kraftwerkskategorie 
     for c in k_set
         for p in l_set
-            if availability[c] == "Fossil"
-            push!(Verfügbarkeit[c], p => Dict(t_set .=> fossil))
-
-            elseif availability[c] == "Wind"
+            if availability[c] == "Wind"
             push!(Verfügbarkeit[c], p => Dict(t_set .=> wind(p)))
             
-            else availability[c] == "Sonne"
+            elseif availability[c] == "Sonne"
             push!(Verfügbarkeit[c], p => Dict(t_set .=> sonne(p)))
+
+            else 
+            push!(Verfügbarkeit[c], p => Dict(t_set .=> fill(availability[c],(t))))
             end
         end
     end        
 
 Verfügbarkeit
+
 
 # Mit Hilfe der Dictionaries werden die Grenzkosten der Kraftwerke berechnet
 function GK(i)
@@ -92,17 +83,14 @@ function GK(i)
 end
 
 #Grenzkosten je Kraftwerkskategorie werden in eine Matrix "costs" eingefügt
-costs=[]
-    for i in Kraftwerke_df[:,:Kategorie]
+Grenzkosten = Dict()
+    for i in k_set
         GK(i)
         p_el = GK(i)
-        push!(costs, p_el)
+        push!(Grenzkosten, i .=> p_el)
     end
-convert(Array{Float64, 1}, costs) # Datentyp für von Any zu Float geändert
-costs
+Grenzkosten
 
-# Weiteres Dictionary wo die Kosten den verschiedenen Kraftwerken zugewiesen werden
-Grenzkosten = Dict(k_set .=> costs)
 
 #Zusammenfassung:
 t
