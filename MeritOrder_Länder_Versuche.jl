@@ -60,3 +60,97 @@ for i in k
 end
 
 
+Zuordnung = Dict(
+    :Wirkungsgrade => Dict(
+        Kraftwerke_df[:,:Kategorie] .=> Kraftwerke_df[:,:Wirkungsgrad]
+    ),
+    :Brennstoffe => Dict(
+        Kraftwerke_df[:,:Kategorie] .=> Kraftwerke_df[:,:Energieträger]
+    ),
+    :Brennstoffkosten => Dict(
+        Energieträger_df[:, :Energieträger] .=> Energieträger_df[:,:Brennstoffkosten]
+    ),
+    :Emissionsfaktor => Dict(
+        Energieträger_df[:, :Energieträger] .=> Energieträger_df[:, :Emissionsfaktor]
+    )
+)
+
+
+Kapazität = Dict(
+        "DE" => Dict(Kraftwerke_df[:,:Kategorie] .=> Kapazität_df[:,:DE]),
+        "FR" => Dict(Kraftwerke_df[:,:Kategorie] .=> Kapazität_df[:,:FR]), 
+        "NL" => Dict(Kraftwerke_df[:,:Kategorie] .=> Kapazität_df[:,:NL]) 
+        )
+
+
+        using CSV
+
+function arr_to_csv(x, outputstring)
+    df = DataFrame(t = Int[], k = Int[], l = Int[], x_results = Float64[])
+    sizes = size(x)
+
+    for t in 1:sizes[1]
+        for k in 1:sizes[2]
+            for l in 1:sizes[3]
+                    push!(df, (t, k, l, x_results[t,k,l]))
+            end
+        end
+    end
+    df |> CSV.write(outputstring, header = ["t", "k", "l", "value"])
+end
+arr_to_csv(x_results, "test.csv")
+
+
+"Braunkohle_0" => Dict(
+            "DE" => Dict(t_set .=> fossil),
+            "FR" => Dict(t_set .=> fossil),
+            "NL" => Dict(t_set .=> fossil)),
+        "Braunkohle_-" => Dict(
+            "DE" => Dict(t_set .=> fossil),
+            "FR" => Dict(t_set .=> fossil),
+            "NL" => Dict(t_set .=> fossil)),
+        "Braunkohle_+" => Dict(
+            "DE" => Dict(t_set .=> fossil),
+            "FR" => Dict(t_set .=> fossil),
+            "NL" => Dict(t_set .=> fossil)),
+        "Steinkohle_0" => Dict(
+            "DE" => Dict(t_set .=> fossil),
+            "FR" => Dict(t_set .=> fossil),
+            "NL" => Dict(t_set .=> fossil)),
+        "Steinkohle_-" => Dict(
+            "DE" => Dict(t_set .=> fossil),
+            "FR" => Dict(t_set .=> fossil),
+            "NL" => Dict(t_set .=> fossil)),
+        "Steinkohle_+" => Dict(
+            "DE" => Dict(t_set .=> fossil),
+            "FR" => Dict(t_set .=> fossil),
+            "NL" => Dict(t_set .=> fossil)),
+        "Erdgas_0" => Dict(
+            "DE" => Dict(t_set .=> fossil),
+            "FR" => Dict(t_set .=> fossil),
+            "NL" => Dict(t_set .=> fossil)),
+        "Erdgas_-" => Dict(
+            "DE" => Dict(t_set .=> fossil),
+            "FR" => Dict(t_set .=> fossil),
+            "NL" => Dict(t_set .=> fossil)),
+        "Erdgas_+" => Dict(
+            "DE" => Dict(t_set .=> fossil),
+            "FR" => Dict(t_set .=> fossil),
+            "NL" => Dict(t_set .=> fossil)),
+        "Wasserkraft" => Dict(
+            "DE" => Dict(t_set .=> fossil),
+            "FR" => Dict(t_set .=> fossil),
+            "NL" => Dict(t_set .=> fossil)),
+        "Biomasse" => Dict(
+            "DE" => Dict(t_set .=> fossil),
+            "FR" => Dict(t_set .=> fossil),
+            "NL" => Dict(t_set .=> fossil)),
+        "Windkraft" => Dict(
+            "DE" => Dict(t_set .=> wind("DE")),
+            "FR" => Dict(t_set .=> wind("FR")),
+            "NL" => Dict(t_set .=> wind("NL"))),
+        "PV" => Dict(
+            "DE" => Dict(t_set .=> sonne("DE")),
+            "FR" => Dict(t_set .=> sonne("FR")),
+            "NL" => Dict(t_set .=> sonne("NL")))
+)
