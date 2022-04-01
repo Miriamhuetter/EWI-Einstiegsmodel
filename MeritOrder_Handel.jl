@@ -81,7 +81,6 @@ function GK(i)
     p_f = Brennstoffkosten[f] #Preis je Brennstoff und Brennstoff hängt über f von Kraftwerkskategorie ab
     e_f = Emissionsfaktor[f] #Emissionsfaktor des Brennstoffes
     p_e = CO2_Preis_df[1, 1] #CO2-Preis
-    #a_f = Verfügbarkeit[:, f] #Gebe die ganze Spalte je nach Brennstoffart aus
 
     p_el = (p_f / η) + (e_f / η) * p_e  #p_el = Grenzkosten
 
@@ -111,7 +110,6 @@ Brennstoffkosten #Nur um GK zu berechnen
 Emissionsfaktor #Nur um GK zu berechnen
 
 Grenzkosten #Brauchen wir im Modell
-
 Nachfrage #Abhängig von Zeit und Land -> fürs Modell
 Kapazität #Abhängig von Kategorie -> fürs Modell
 Verfügbarkeit #Abhängig von Kategorie -> fürs Modell
@@ -121,15 +119,19 @@ Verfügbarkeit #Abhängig von Kategorie -> fürs Modell
 model = Model(CPLEX.Optimizer)
 set_silent(model)
 
-@variable(model, h[t in t_set, l in l_set])
 @variable(model, x[t in t_set, k in k_set , l in l_set] >= 0) # Abgerufene Leistung ist abhängig von der Zeit, dem Kraftwerk und des Landes  
 @objective(model, Min, sum(Grenzkosten[k]*x[t,k,l] for t in t_set, k in k_set, l in l_set)) # Zielfunktion: Multipliziere für jede Kraftwerkskategorie die Grenzkosten mit der eingesetzten Leistung in jeder Stunde und abhängig vom Land -> Minimieren
-@constraint(model, c1[t in t_set, l in l_set], sum(x[t,:,l]) + h[t, l] == Nachfrage[l][t]) # Die Summe der Leistungen über die Kraftwerkskategorien je Stunde darf nicht größer sein als die Nachfrage 
+
+#@expression(model, h[t in t_set,l in k_set, k in l_set], x[t,k,l] for t in t_set, l in k_set, k in l_set)
+
+@constraint(model, c1[t in t_set, l in l_set], sum(x[t,:,l]) == Nachfrage[l][t] + sum(x[t,l,j] for j in l_set))
+
+# Die Summe der Leistungen über die Kraftwerkskategorien je Stunde darf nicht größer sein als die Nachfrage 
 @constraint(model, c2[t in t_set, k in k_set, l in l_set], x[t,k,l] .<= Kapazität[l][k]*Verfügbarkeit[k][l][t]) # Die Leistung je Kraftwerkskategorie muss kleiner sein als die Kapazität...
 #...der Kraftwerkskategorie in dem betrachteten Land multipliziert mit der Verfügbarkeit -> Verwendung der Inhalte aus den Dictionaries
 
-@expression(model, uv[t in t_set, l in l_set], Kapazität[l][k]*Verfügbarkeit[k][l][t] - x[t,k,l] for t in t_set, k in k_set, l in l_set)
-@constraint(model, c3[t in t_set, l in l_set], h[t,l] .<= (Kapazität[l][k]*Verfügbarkeit[k][l][t] - sum(x[t,:,l]) for t in t_set, k in k_set, l in l_set))
+#@expression(model, uv[t in t_set, l in l_set], Kapazität[l][k]*Verfügbarkeit[k][l][t] - x[t,k,l] for t in t_set, k in k_set, l in l_set)
+#@constraint(model, c3[t in t_set, l in l_set], h[t,l] .<= (Kapazität[l][k]*Verfügbarkeit[k][l][t] - sum(x[t,:,l]) for t in t_set, k in k_set, l in l_set))
 
 
 optimize!(model)
