@@ -20,6 +20,13 @@ t = size(Nachfrage_df,1)
 k = size(Kraftwerke_df,1)
 l = size(Nachfrage_df,2)
 
+#Wenn weniger Stunden betrachtet werden sollen
+t = 48
+
+Nachfrage_df = Nachfrage_df[1:t,:]
+Wind_df = Wind_df[1:t, :]
+Sonne_df = Sonne_df[1:t, :]
+
 # Dimensionen Zeit, Kraftwerkskategorien und Länder werden als Sets/Vektoren ausgegeben
 t_set = collect(1:t)
 k_set = Kraftwerke_df[:,:Kategorie]
@@ -31,6 +38,8 @@ Brennstoffe = Dict(k_set .=> Kraftwerke_df[:,:Energieträger])
 Brennstoffkosten = Dict(Energieträger_df[:, :Energieträger] .=> Energieträger_df[:,:Brennstoffkosten])
 Emissionsfaktor = Dict(Energieträger_df[:, :Energieträger] .=> Energieträger_df[:, :Emissionsfaktor])
 availability = Dict(k_set .=> Kraftwerke_df[:, :Verfügbarkeit])
+Effizienz = Dict(k_set .=> Kraftwerke_df[:, :Effizienz])
+
 # Kapazitäten dicitionary wird je nach Land und Kraftwerkstyp erstellt
 Kapazität = Dict()
     for p in l_set
@@ -98,41 +107,28 @@ Grenzkosten
 
 
 #Zusammenfassung:
-t
-k
-l
 t_set
 k_set
 l_set
-Wirkungsgrade #Nur um GK zu berechnen
-Brennstoffe #Nur um GK zu berechnen
-Brennstoffkosten #Nur um GK zu berechnen
-Emissionsfaktor #Nur um GK zu berechnen
 
 Grenzkosten #Brauchen wir im Modell
 Nachfrage #Abhängig von Zeit und Land -> fürs Modell
 Kapazität #Abhängig von Kategorie -> fürs Modell
 Verfügbarkeit #Abhängig von Kategorie -> fürs Modell
-
+Effizienz
 
 #Zu optimierendes Modell wird erstellt
 model = Model(CPLEX.Optimizer)
 set_silent(model)
 
 @variable(model, x[t in t_set, k in k_set , l in l_set] >= 0) # Abgerufene Leistung ist abhängig von der Zeit, dem Kraftwerk und des Landes  
+
 @objective(model, Min, sum(Grenzkosten[k]*x[t,k,l] for t in t_set, k in k_set, l in l_set)) # Zielfunktion: Multipliziere für jede Kraftwerkskategorie die Grenzkosten mit der eingesetzten Leistung in jeder Stunde und abhängig vom Land -> Minimieren
 
-#@expression(model, h[t in t_set,l in k_set, k in l_set], x[t,k,l] for t in t_set, l in k_set, k in l_set)
+@constraint(model, c1[t in t_set, l in l_set], sum(x[t,g,l] * Effizienz[g] for g in k_set) == Nachfrage[l][t] + sum(x[t,l,j] for j in l_set)) 
 
-@constraint(model, c1[t in t_set, l in l_set], sum(x[t,:,l]) == Nachfrage[l][t] + sum(x[t,l,j] for j in l_set))
-
-# Die Summe der Leistungen über die Kraftwerkskategorien je Stunde darf nicht größer sein als die Nachfrage 
-@constraint(model, c2[t in t_set, k in k_set, l in l_set], x[t,k,l] .<= Kapazität[l][k]*Verfügbarkeit[k][l][t]) # Die Leistung je Kraftwerkskategorie muss kleiner sein als die Kapazität...
+@constraint(model, c2[t in t_set, k in k_set, l in l_set], x[t,k,l] .<= Kapazität[l][k]*Verfügbarkeit[k][l][t]*Effizienz[k]) # Die Leistung je Kraftwerkskategorie muss kleiner sein als die Kapazität...
 #...der Kraftwerkskategorie in dem betrachteten Land multipliziert mit der Verfügbarkeit -> Verwendung der Inhalte aus den Dictionaries
-
-#@expression(model, uv[t in t_set, l in l_set], Kapazität[l][k]*Verfügbarkeit[k][l][t] - x[t,k,l] for t in t_set, k in k_set, l in l_set)
-#@constraint(model, c3[t in t_set, l in l_set], h[t,l] .<= (Kapazität[l][k]*Verfügbarkeit[k][l][t] - sum(x[t,:,l]) for t in t_set, k in k_set, l in l_set))
-
 
 optimize!(model)
 
