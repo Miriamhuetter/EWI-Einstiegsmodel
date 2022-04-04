@@ -153,7 +153,6 @@ arr_to_csv(x_results, "test.csv")
             "DE" => Dict(t_set .=> sonne("DE")),
             "FR" => Dict(t_set .=> sonne("FR")),
             "NL" => Dict(t_set .=> sonne("NL")))
-)
 
 
 # Einzelne Excellisten für die verschiedenen Länder und deren Ergebnisse erstellen
