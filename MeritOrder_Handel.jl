@@ -20,9 +20,10 @@ t = size(Nachfrage_df,1)
 k = size(Kraftwerke_df,1)
 l = size(Nachfrage_df,2)
 
-#Wenn weniger Stunden betrachtet werden sollen
-t = 48
+# Wenn weniger Stunden betrachtet werden sollen max. 8760
+t = 24
 
+# Stromlast und Verfügbarkeit von Wind & Sonne, auf den zu betrachtenden Zeitraum reduziert
 Nachfrage_df = Nachfrage_df[1:t,:]
 Wind_df = Wind_df[1:t, :]
 Sonne_df = Sonne_df[1:t, :]
@@ -38,7 +39,7 @@ Brennstoffe = Dict(k_set .=> Kraftwerke_df[:,:Energieträger])
 Brennstoffkosten = Dict(Energieträger_df[:, :Energieträger] .=> Energieträger_df[:,:Brennstoffkosten])
 Emissionsfaktor = Dict(Energieträger_df[:, :Energieträger] .=> Energieträger_df[:, :Emissionsfaktor])
 availability = Dict(k_set .=> Kraftwerke_df[:, :Verfügbarkeit])
-Effizienz = Dict(k_set .=> Kraftwerke_df[:, :Effizienz])
+Effizienz = Dict(k_set .=> Kraftwerke_df[:, :Effizienz]) # Benötigt für Handel
 
 # Kapazitäten dicitionary wird je nach Land und Kraftwerkstyp erstellt
 Kapazität = Dict()
@@ -46,6 +47,7 @@ Kapazität = Dict()
         push!(Kapazität, p => Dict(k_set .=> Kapazität_df[:,p]),) 
     end
 Kapazität
+
 # Nachfrage dictionary wird je nach Land und Stunde erstellt
 Nachfrage = Dict()
     for p in l_set
@@ -122,26 +124,32 @@ model = Model(CPLEX.Optimizer)
 set_silent(model)
 
 @variable(model, x[t in t_set, k in k_set , l in l_set] >= 0) # Abgerufene Leistung ist abhängig von der Zeit, dem Kraftwerk und des Landes  
-
 @objective(model, Min, sum(Grenzkosten[k]*x[t,k,l] for t in t_set, k in k_set, l in l_set)) # Zielfunktion: Multipliziere für jede Kraftwerkskategorie die Grenzkosten mit der eingesetzten Leistung in jeder Stunde und abhängig vom Land -> Minimieren
-
-@constraint(model, c1[t in t_set, l in l_set], sum(x[t,g,l] * Effizienz[g] for g in k_set) == Nachfrage[l][t] + sum(x[t,l,j] for j in l_set)) 
-
-@constraint(model, c2[t in t_set, k in k_set, l in l_set], x[t,k,l] .<= Kapazität[l][k]*Verfügbarkeit[k][l][t]*Effizienz[k]) # Die Leistung je Kraftwerkskategorie muss kleiner sein als die Kapazität...
+@constraint(model, c1[t in t_set, l in l_set], sum(x[t,k,l] * Effizienz[k] for k in k_set) == Nachfrage[l][t] + sum(x[t,l,j] for j in l_set)) # Summe der eingesetzten Leistung soll mit der Effizient multipliziert werden (für eigenen Verbrauch ist die Effizienz 1, für Handel ist sie kleiner -> Grund Eigenverbrauch soll vorrangig passieren)...
+# ... auf die eigene Nachfrage des Landes wird die Summe die exportiert wird draufgerechnet, da dies extra produziert wird. Das findet nur für Kraftwerke statt, die auch Länder sind. 
+@constraint(model, c2[t in t_set, k in k_set, l in l_set], x[t,k,l] .<= Kapazität[l][k]*Verfügbarkeit[k][l][t]) # Die Leistung je Kraftwerkskategorie muss kleiner sein als die Kapazität...
 #...der Kraftwerkskategorie in dem betrachteten Land multipliziert mit der Verfügbarkeit -> Verwendung der Inhalte aus den Dictionaries
 
 optimize!(model)
 
 x_results = @show value.(x) #Matrix aller Leistungen. x_results hat drei Dimensionen
 obj_value = @show objective_value(model) #Minimierte Gesamtkosten der Stromerzeugung im gesamten Jahr
-el_price = @show shadow_price.(c1) #Strompreis in jeder Stunde des Jahres
+el_price = @show shadow_price.(c1)*(-1) #Strompreis in jeder Stunde des Jahres
 
 # Die Ergebnisse werden als Excellisten exportiert, jedes Land als extra Excel. Inhalt: verwendete Leistung je Stunde und Kraftwerkskategorie
 for z in l_set
-    y_results = x_results[:,:,z]
-    z_results = Array(y_results)
-    Excelname = "Ergebnisse"*z*".xlsx"
-    results = DataFrame(z_results, k_set)
-    rm(Excelname, force=true) #Lösche die alte, bereits bestehende Excel-Ergebnisliste
-    XLSX.writetable(Excelname, results) #Erstelle eine neue Ergebnisliste
+    y_results = Array(x_results[:,:,z])
+    #Excelname = "Ergebnisse"*z*".xlsx"
+    z = DataFrame(y_results, k_set)
 end
+
+
+
+# Ausgabe der Ergebnisse in einer Excelliste
+Strompreise = DataFrame(Array(el_price[:,:]), l_set)
+
+for q in l_set
+    q = DataFrame(Array(x_results[:,:,q]), k_set)
+end
+# Die Namen der Tabellenblätter müssen händisch angepasst werden, falls Länder hinzugefügt werden
+XLSX.writetable("Ergebnisse.xlsx", overwrite=true, "DE" => DE, "FR" => FR, "NL" => NL, "Strompreise" => Strompreise)
