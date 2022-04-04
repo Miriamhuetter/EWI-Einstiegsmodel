@@ -154,3 +154,29 @@ arr_to_csv(x_results, "test.csv")
             "FR" => Dict(t_set .=> sonne("FR")),
             "NL" => Dict(t_set .=> sonne("NL")))
 )
+
+
+# Einzelne Excellisten für die verschiedenen Länder und deren Ergebnisse erstellen
+for z in l_set
+    y_results = x_results[:,:,z]
+    z_results = Array(y_results)
+    Excelname = "Ergebnisse"*z*".xlsx"
+    results = DataFrame(z_results, k_set)
+    rm(Excelname, force=true) #Lösche die alte, bereits bestehende Excel-Ergebnisliste
+    XLSX.writetable(Excelname, results) #Erstelle eine neue Ergebnisliste
+end
+
+
+# Inhalte fehlen noch 
+XLSX.openxlsx("test_file.xlsx", mode="w") do xf
+    XLSX.rename!(xf[1], "first")
+
+    for sheetname in l_set
+      XLSX.addsheet!(xf, sheetname)
+    end
+
+    for q in 2:l+1 
+        xf[q]["A1"] = "A"
+    end
+    
+end
