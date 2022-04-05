@@ -40,7 +40,7 @@ n_set = String.(names(Kapazität_df))
 
 
 # Dictionaries werden erstellt, welche benötigte Inhalte und Zuweisungen enthalten
-Wirkungsgrade = Dict(k_set .=> Kraftwerke_df[:,:Wirkungsgrad])
+Wirkungsgrad = Dict(k_set .=> Kraftwerke_df[:,:Wirkungsgrad])
 Brennstoffe = Dict(k_set .=> Kraftwerke_df[:,:Energieträger])
 Brennstoffkosten = Dict(Energieträger_df[:, :Energieträger] .=> Energieträger_df[:,:Brennstoffkosten])
 Emissionsfaktor = Dict(Energieträger_df[:, :Energieträger] .=> Energieträger_df[:, :Emissionsfaktor])
@@ -96,7 +96,7 @@ Verfügbarkeit
 # Mit Hilfe der Dictionaries werden die Grenzkosten der Kraftwerke berechnet
 function GK(i)
     f = Brennstoffe[i] #Verwendeter Brennstoff je Kraftwerkskategorie
-    η = Wirkungsgrade[i] #Wirkungsgrad je Kraftwerkskategorie
+    η = Wirkungsgrad[i] #Wirkungsgrad je Kraftwerkskategorie
     p_f = Brennstoffkosten[f] #Preis je Brennstoff und Brennstoff hängt über f von Kraftwerkskategorie ab
     e_f = Emissionsfaktor[f] #Emissionsfaktor des Brennstoffes
     p_e = CO2_Preis_df[1, 1] #CO2-Preis
@@ -136,7 +136,7 @@ set_silent(model)
 @variable(model, x[t in t_set, k in k_set , n in n_set] >= 0) # Abgerufene Leistung ist abhängig von der Zeit, dem Kraftwerk und des Landes  
 @variable(model, 0 <= y[t in t_set_0, s in s_set, l in l_set] <= Volumenfaktor[s] * Kapazität[l][s])
 @objective(model, Min, sum(Grenzkosten[k]*x[t,k,n] for t in t_set, k in k_set, n in n_set)) # Zielfunktion: Multipliziere für jede Kraftwerkskategorie die Grenzkosten mit der eingesetzten Leistung in jeder Stunde und abhängig vom Land -> Minimieren
-@constraint(model, c1[t in t_set, l in l_set], sum(x[t,k,l] * Effizienz[k] for k in k_set) == Nachfrage[l][t] + sum(x[t,l,j] for j in l_set) + sum(x[t,l,s] for s in s_set)) # Summe der eingesetzten Leistung soll mit der Effizient multipliziert werden (für eigenen Verbrauch ist die Effizienz 1, für Handel ist sie kleiner -> Grund Eigenverbrauch soll vorrangig passieren)...
+@constraint(model, c1[t in t_set, l in l_set], sum(x[t,k,l] * Effizienz[k] for k in k_set) == Nachfrage[l][t] + sum(x[t,l,j] for j in l_set) + sum(x[t,l,s] / Wirkungsgrad[s] for s in s_set)) # Summe der eingesetzten Leistung soll mit der Effizient multipliziert werden (für eigenen Verbrauch ist die Effizienz 1, für Handel ist sie kleiner -> Grund Eigenverbrauch soll vorrangig passieren)...
 # ... auf die eigene Nachfrage des Landes wird die Summe die exportiert wird draufgerechnet, da dies extra produziert wird. Das findet nur für Kraftwerke statt, die auch Länder sind. 
 @constraint(model, c2[t in t_set, k in k_set, l in l_set], x[t,k,l] .<= Kapazität[l][k]*Verfügbarkeit[k][l][t]) # Die Leistung je Kraftwerkskategorie muss kleiner sein als die Kapazität...
 #...der Kraftwerkskategorie in dem betrachteten Land multipliziert mit der Verfügbarkeit -> Verwendung der Inhalte aus den Dictionaries. Speicher hier enthalten, diese werden im Falle der Ausspeicherung auf die zur Verfügung stehende Kapazität beschränkt
