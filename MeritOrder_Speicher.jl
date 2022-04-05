@@ -157,12 +157,25 @@ el_price = @show shadow_price.(c1)*(-1) #Strompreis in jeder Stunde des Jahres
 DE = DataFrame(Array(x_results[:,:,"DE"]), k_set)
 FR = DataFrame(Array(x_results[:,:,"FR"]), k_set)
 NL = DataFrame(Array(x_results[:,:,"NL"]), k_set)
+PL = DataFrame(Array(x_results[:,:,"PL"]), k_set)
+SE = DataFrame(Array(x_results[:,:,"SE"]), k_set)
+NO = DataFrame(Array(x_results[:,:,"NO"]), k_set)
 Pumpspeicher = DataFrame(Array(x_results[:,:,"Pumpspeicher"]), k_set) #Einspeicherung wird angezeigt
-Speicherstand = DataFrame(Array(y_results[:,"Pumpspeicher",:]), l_set) #Speicherstand wird angezeigt
+Speicherstand = DataFrame(Array(y_results[:,"Pumpspeicher",:]), l_set) #Speicherstand anfang der betrachteten Stunde wird angezeigt
 
 
 # Ausgabe der Strompreise je Land
 Strompreise = DataFrame(Array(el_price[:,:]), l_set)
 
 # Die Namen der Tabellenblätter müssen händisch angepasst werden, falls Länder hinzugefügt werden
-XLSX.writetable("Ergebnisse.xlsx", overwrite=true, "DE" => DE, "FR" => FR, "NL" => NL, "Strompreise" => Strompreise, "Pumpspeicher" => Pumpspeicher, "Speicherstand" => Speicherstand)
+XLSX.writetable("Ergebnisse.xlsx", overwrite=true, 
+        "DE" => DE, 
+        "FR" => FR, 
+        "NL" => NL, 
+        "PL" => PL,
+        "SE" => SE,
+        "NO" => NO,
+        "Strompreise" => Strompreise, 
+        "Pumpspeicher_Einspeicherung" => Pumpspeicher, 
+        "Speicherstand" => Speicherstand,
+        "Nachfrage" => Nachfrage_df)
