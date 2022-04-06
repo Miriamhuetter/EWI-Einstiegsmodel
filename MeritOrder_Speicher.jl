@@ -154,14 +154,38 @@ el_price = @show shadow_price.(c1)*(-1) #Strompreis in jeder Stunde des Jahres
 
 
 # Ausgabe der Ergebnisse je Land 
-DE = DataFrame(Array(x_results[:,:,"DE"]), k_set)
-FR = DataFrame(Array(x_results[:,:,"FR"]), k_set)
-NL = DataFrame(Array(x_results[:,:,"NL"]), k_set)
-PL = DataFrame(Array(x_results[:,:,"PL"]), k_set)
-SE = DataFrame(Array(x_results[:,:,"SE"]), k_set)
-NO = DataFrame(Array(x_results[:,:,"NO"]), k_set)
+DE_df = DataFrame(Array(x_results[:,:,"DE"]), k_set)
+FR_df = DataFrame(Array(x_results[:,:,"FR"]), k_set)
+NL_df = DataFrame(Array(x_results[:,:,"NL"]), k_set)
+PL_df = DataFrame(Array(x_results[:,:,"PL"]), k_set)
+SE_df = DataFrame(Array(x_results[:,:,"SE"]), k_set)
+NO_df = DataFrame(Array(x_results[:,:,"NO"]), k_set)
 Pumpspeicher = DataFrame(Array(x_results[:,:,"Pumpspeicher"]), k_set) #Einspeicherung wird angezeigt
 Speicherstand = DataFrame(Array(y_results[:,"Pumpspeicher",:]), l_set) #Speicherstand anfang der betrachteten Stunde wird angezeigt
+
+DE = hcat(DE_df, DataFrame(
+     hcat(FR_df[:,:DE], NL_df[:,:DE], PL_df[:,:DE], SE_df[:,:DE], NO_df[:,:DE], Pumpspeicher[:,:DE], Nachfrage_df[:,:DE]), 
+     ["FR_ex", "NL_ex", "PL_ex", "SE_ex", "NO_ex", "Einspeicherung", "Nachfrage"]))
+
+FR = hcat(FR_df, DataFrame(
+     hcat(DE_df[:,:FR], NL_df[:,:FR], PL_df[:,:FR], SE_df[:,:FR], NO_df[:,:FR], Pumpspeicher[:,:FR], Nachfrage_df[:,:FR]), 
+     ["DE_ex", "NL_ex", "PL_ex", "SE_ex", "NO_ex", "Einspeicherung", "Nachfrage"]))
+
+NL = hcat(NL_df, DataFrame(
+     hcat(DE_df[:,:NL], FR_df[:,:NL], PL_df[:,:NL], SE_df[:,:NL], NO_df[:,:NL], Pumpspeicher[:,:NL], Nachfrage_df[:,:NL]), 
+     ["DE_ex", "FR_ex", "PL_ex", "SE_ex", "NO_ex", "Einspeicherung", "Nachfrage"]))
+
+PL = hcat(PL_df, DataFrame(
+     hcat(DE_df[:,:PL], FR_df[:,:PL], NL_df[:,:PL], SE_df[:,:PL], NO_df[:,:PL], Pumpspeicher[:,:PL], Nachfrage_df[:,:PL]), 
+     ["DE_ex", "FR_ex", "NL_ex", "SE_ex", "NO_ex", "Einspeicherung", "Nachfrage"]))
+   
+SE = hcat(SE_df, DataFrame(
+     hcat(DE_df[:,:SE], FR_df[:,:SE], NL_df[:,:SE], PL_df[:,:SE], NO_df[:,:SE], Pumpspeicher[:,:SE], Nachfrage_df[:,:SE]), 
+     ["DE_ex", "FR_ex", "NL_ex", "PL_ex", "NO_ex", "Einspeicherung", "Nachfrage"]))
+   
+NO = hcat(NO_df, DataFrame(
+     hcat(DE_df[:,:NO], FR_df[:,:NO], NL_df[:,:NO], PL_df[:,:NO], SE_df[:,:NO], Pumpspeicher[:,:NO], Nachfrage_df[:,:NO]), 
+     ["DE_ex", "FR_ex", "NL_ex", "PL_ex", "SE_ex", "Einspeicherung", "Nachfrage"]))
 
 
 # Ausgabe der Strompreise je Land
@@ -169,7 +193,7 @@ Strompreise = DataFrame(Array(el_price[:,:]), l_set)
 
 # Die Namen der Tabellenblätter müssen händisch angepasst werden, falls Länder hinzugefügt werden
 XLSX.writetable("Ergebnisse.xlsx", overwrite=true, 
-        "DE" => DE, 
+        "DE" => DE,
         "FR" => FR, 
         "NL" => NL, 
         "PL" => PL,
