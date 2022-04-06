@@ -15,6 +15,7 @@ Nachfrage_df = DataFrame(XLSX.readtable("MeritOrderSpeicher.xlsx", "Nachfrage").
 CO2_Preis_df = DataFrame(XLSX.readtable("MeritOrderSpeicher.xlsx", "CO2-Preis")...) .|> float
 Wind_df = DataFrame(XLSX.readtable("MeritOrderSpeicher.xlsx", "Wind", infer_eltypes=true)...)
 Sonne_df = DataFrame(XLSX.readtable("MeritOrderSpeicher.xlsx", "Sonne", infer_eltypes=true)...)
+Effizienz_df = DataFrame(XLSX.readtable("MeritOrderSpeicher.xlsx", "Effizienz", infer_eltypes=true)...)
 
 # Größe der Dimensionen Zeit, Kraftwerke und Länder werden als Zahl bestimmt
 t = size(Nachfrage_df,1)
@@ -24,7 +25,7 @@ n = size(Kapazität_df,2)
 s = n - l
 
 # Wenn weniger Stunden betrachtet werden sollen hier eingeben, max. 8760
-t = 24
+t = 35
 
 # Die Tabellen Stromlast und Verfügbarkeit von Wind & Sonne wird auf den zu betrachtenden Zeitraum reduziert
 Nachfrage_df = Nachfrage_df[1:t,:]
@@ -46,7 +47,6 @@ Brennstoffe = Dict(k_set .=> Kraftwerke_df[:,:Energieträger])
 Brennstoffkosten = Dict(Energieträger_df[:, :Energieträger] .=> Energieträger_df[:,:Brennstoffkosten])
 Emissionsfaktor = Dict(Energieträger_df[:, :Energieträger] .=> Energieträger_df[:, :Emissionsfaktor])
 availability = Dict(k_set .=> Kraftwerke_df[:, :Verfügbarkeit])
-Effizienz = Dict(k_set .=> Kraftwerke_df[:, :Effizienz]) # Benötigt für Handel
 Volumenfaktor = Dict(k_set .=> Kraftwerke_df[:, :Volumenfaktor])
 
 
@@ -93,6 +93,18 @@ Verfügbarkeit
 
 Verfügbarkeit
 
+Effizienz = Dict()
+    for c in k_set
+        if c in l_set
+        push!(Effizienz, c => Dict(l_set .=> Effizienz_df[:,c]))
+        
+        else
+        push!(Effizienz, c => Dict(l_set .=> 1))    
+        end
+    end
+
+Effizienz
+
 
 # Mit Hilfe der Dictionaries werden die Grenzkosten der Kraftwerke berechnet
 function GK(i)
@@ -131,13 +143,13 @@ Verfügbarkeit #Abhängig von Kategorie -> fürs Modell
 Effizienz
 
 #Zu optimierendes Modell wird erstellt
-model = Model(CPLEX.Optimizer)
+model = direct_model(CPLEX.Optimizer())
 set_silent(model)
 
 @variable(model, x[t in t_set, k in k_set , n in n_set] >= 0) # Abgerufene Leistung ist abhängig von der Zeit, dem Kraftwerk und Land  
 @variable(model, 0 <= y[t in t_set_0, s in s_set, l in l_set] <= Volumenfaktor[s] * Kapazität[l][s]) # Variable y überprüft das Speicherlevel: Darf nicht höher sein als installierte Kapazität * Volumenfaktor & muss größer Null sein
 @objective(model, Min, sum(Grenzkosten[k]*x[t,k,n] for t in t_set, k in k_set, n in n_set)) # Zielfunktion: Multipliziere für jede Kraftwerkskategorie die Grenzkosten mit der eingesetzten Leistung in jeder Stunde und abhängig vom Land -> Minimieren
-@constraint(model, c1[t in t_set, l in l_set], sum(x[t,k,l] * Effizienz[k] for k in k_set) == Nachfrage[l][t] + sum(x[t,l,j] for j in l_set) + sum(x[t,l,s] / Wirkungsgrad[s] for s in s_set)) # Summe der eingesetzten Leistung soll mit der Effizienz multipliziert werden (für eigenen Verbrauch ist die Effizienz 1, für Handel ist sie kleiner -> Grund Eigenverbrauch soll vorrangig passieren)...
+@constraint(model, c1[t in t_set, l in l_set], sum(x[t,k,l] * Effizienz[k][l] for k in k_set) == Nachfrage[l][t] + sum(x[t,l,j] for j in l_set) + sum(x[t,l,s] / Wirkungsgrad[s] for s in s_set)) # Summe der eingesetzten Leistung soll mit der Effizienz multipliziert werden (für eigenen Verbrauch ist die Effizienz 1, für Handel ist sie kleiner -> Grund Eigenverbrauch soll vorrangig passieren)...
 # ... auf die eigene Nachfrage des Landes wird die Summe die exportiert wird draufgerechnet, da dies extra produziert wird. Das findet nur für Kraftwerke statt, die auch Länder sind. 
 # ... Zusätzlich wird überschüssige Energie eines Landes eingespeichert. Die Einspeicherung wird mit einem Wirkungsgrad (Verluste) versehen und auf die Nachfrage addiert. 
 # ... Die Ausspeicherung ist auf der linken Gleichheitszeichen im x enthalten, da die Ausspeicherung wie die Stromerzeugung eines Kraftwerkes behandelt wird.
