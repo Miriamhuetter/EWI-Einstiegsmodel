@@ -27,7 +27,7 @@ n = size(Kapazität_df,2)
 s = n - l
 
 # Wenn weniger Stunden betrachtet werden sollen hier eingeben, max. 8760
-t = 38
+t = 8760
 
 # Die Tabellen Stromlast und Verfügbarkeit von Wind & Sonne wird auf den zu betrachtenden Zeitraum reduziert
 Nachfrage_df = Nachfrage_df[1:t,:]
@@ -38,7 +38,7 @@ Sonne_df = Sonne_df[1:t, :]
 t_set = collect(1:t)
 k_set = Kraftwerke_df[:,:Kategorie]
 l_set = String.(names(Nachfrage_df)) #Länderbezeichnungen als Vektor
-s_set = ["Pumpspeicher"] #Speicher
+s_set = ["Pumpspeicher", "Batteriespeicher", "Wasserstoffspeicher"] #Speicher
 n_set = String.(names(Kapazität_df)) #Länder und Speicher werden als Kraftwerke betrachtet -> Länder beim Handel und Speicher als Abnehmer oder Erzeuger
 
 
@@ -144,7 +144,7 @@ n_set
 
 Grenzkosten #Brauchen wir im Modell
 Nachfrage #Abhängig von Zeit und Land -> fürs Modell
-Kapazität["DE"]["Pumpspeicher"] #Abhängig von Kategorie -> fürs Modell
+Kapazität #Abhängig von Kategorie -> fürs Modell
 Verfügbarkeit #Abhängig von Kategorie -> fürs Modell
 Effizienz
 
@@ -168,6 +168,7 @@ set_silent(model)
 @constraint(model, c6[s in s_set, l in l_set], y[1,s,l] == 0.5*Volumenfaktor[s][l] * Kapazität[l][s]) # NB 5 sagt, dass das Speicherlevel zur Stunde Null der halben Kapazität entsprechen muss
 
 optimize!(model)
+termination_status(model)
 
 x_results = @show value.(x) # Matrix aller abgerufenen Leistungen. x_results hat drei Dimensionen
 y_results = @show value.(y) # Matrix aller abgerufenen Speicherstände
@@ -185,8 +186,17 @@ SE_df = DataFrame(Array(x_results[:,:,"SE"]), k_set)
 NO_df = DataFrame(Array(x_results[:,:,"NO"]), k_set)
 # Einspeicherung aller Länder in deren Pumpspeicher wird angezeigt
 Pumpspeicher = DataFrame(Array(x_results[:,:,"Pumpspeicher"]), k_set)
+# Einspeicherung aller Länder in deren Batteriespeicher wird angezeigt
+Batteriespeicher = DataFrame(Array(x_results[:,:,"Batteriespeicher"]), k_set)
+# Einspeicherung aller Länder in deren Wasserstoffspeicher wird angezeigt
+Wasserstoffspeicher = DataFrame(Array(x_results[:,:,"Wasserstoffspeicher"]), k_set)
+
 # Speicherstand am Anfang der betrachteten Stunde wird angezeigt je Land
-Speicherstand = DataFrame(Array(y_results[:,"Pumpspeicher",:]), l_set) 
+PS_Speicherstand = DataFrame(Array(y_results[:,"Pumpspeicher",:]), l_set) 
+
+BS_Speicherstand = DataFrame(Array(y_results[:,"Batteriespeicher",:]), l_set)
+
+WS_Speicherstand = DataFrame(Array(y_results[:,"Wasserstoffspeicher",:]), l_set)
 
 # Ausgabe der Strompreise je Land
 Strompreise = DataFrame(Array(el_price[:,:]), l_set)
@@ -194,28 +204,28 @@ Strompreise = DataFrame(Array(el_price[:,:]), l_set)
 # Vorbereitung des Ergebnis-Outputs in Excel
 # Dataframe für jedes Land wird erstellt, den Ergebnissen von oben werden die Exporte in die verschiedenen Länder angehängt, sowie die Einspeicherung und die Nachfrage des betrachteten Ladens  
 DE = hcat(DE_df, DataFrame(
-     hcat(FR_df[:,:DE], NL_df[:,:DE], PL_df[:,:DE], SE_df[:,:DE], NO_df[:,:DE], Pumpspeicher[:,:DE], Speicherstand[:,:DE], Nachfrage_df[:,:DE], Strompreise[:,:DE]), 
-     ["FR_ex", "NL_ex", "PL_ex", "SE_ex", "NO_ex", "Einspeicherung", "Speicherstand", "Nachfrage", "Strompreis"]))
+     hcat(FR_df[:,:DE], NL_df[:,:DE], PL_df[:,:DE], SE_df[:,:DE], NO_df[:,:DE], Pumpspeicher[:,:DE], PS_Speicherstand[:,:DE], Batteriespeicher[:,:DE], BS_Speicherstand[:,:DE], Wasserstoffspeicher[:,:DE], WS_Speicherstand[:,:DE], Nachfrage_df[:,:DE], Strompreise[:,:DE]), 
+     ["FR_ex", "NL_ex", "PL_ex", "SE_ex", "NO_ex", "PS_Einspeicherung", "PS_Speicherstand", "BS_Einspeicherung", "BS_Speicherstand", "WS_Einspeicherung", "WS_Speicherstand", "Nachfrage", "Strompreis"]))
 
 FR = hcat(FR_df, DataFrame(
-     hcat(DE_df[:,:FR], NL_df[:,:FR], PL_df[:,:FR], SE_df[:,:FR], NO_df[:,:FR], Pumpspeicher[:,:FR], Speicherstand[:,:FR], Nachfrage_df[:,:FR], Strompreise[:,:FR]), 
-     ["DE_ex", "NL_ex", "PL_ex", "SE_ex", "NO_ex", "Einspeicherung", "Speicherstand", "Nachfrage", "Strompreis"]))
+     hcat(DE_df[:,:FR], NL_df[:,:FR], PL_df[:,:FR], SE_df[:,:FR], NO_df[:,:FR], Pumpspeicher[:,:FR], PS_Speicherstand[:,:FR], Batteriespeicher[:,:FR], BS_Speicherstand[:,:FR], Wasserstoffspeicher[:,:FR], WS_Speicherstand[:,:FR], Nachfrage_df[:,:FR], Strompreise[:,:FR]), 
+     ["DE_ex", "NL_ex", "PL_ex", "SE_ex", "NO_ex", "PS_Einspeicherung", "PS_Speicherstand", "BS_Einspeicherung", "BS_Speicherstand", "WS_Einspeicherung", "WS_Speicherstand", "Nachfrage", "Strompreis"]))
 
 NL = hcat(NL_df, DataFrame(
-     hcat(DE_df[:,:NL], FR_df[:,:NL], PL_df[:,:NL], SE_df[:,:NL], NO_df[:,:NL], Pumpspeicher[:,:NL], Speicherstand[:,:NL], Nachfrage_df[:,:NL], Strompreise[:,:NL]), 
-     ["DE_ex", "FR_ex", "PL_ex", "SE_ex", "NO_ex", "Einspeicherung", "Speicherstand", "Nachfrage", "Strompreis"]))
+     hcat(DE_df[:,:NL], FR_df[:,:NL], PL_df[:,:NL], SE_df[:,:NL], NO_df[:,:NL], Pumpspeicher[:,:NL], PS_Speicherstand[:,:NL], Batteriespeicher[:,:NL], BS_Speicherstand[:,:NL], Wasserstoffspeicher[:,:NL], WS_Speicherstand[:,:NL], Nachfrage_df[:,:NL], Strompreise[:,:NL]), 
+     ["DE_ex", "FR_ex", "PL_ex", "SE_ex", "NO_ex", "PS_Einspeicherung", "PS_Speicherstand", "BS_Einspeicherung", "BS_Speicherstand", "WS_Einspeicherung", "WS_Speicherstand", "Nachfrage", "Strompreis"]))
 
 PL = hcat(PL_df, DataFrame(
-     hcat(DE_df[:,:PL], FR_df[:,:PL], NL_df[:,:PL], SE_df[:,:PL], NO_df[:,:PL], Pumpspeicher[:,:PL], Speicherstand[:,:PL], Nachfrage_df[:,:PL], Strompreise[:,:PL]), 
-     ["DE_ex", "FR_ex", "NL_ex", "SE_ex", "NO_ex", "Einspeicherung", "Speicherstand", "Nachfrage", "Strompreis"]))
+     hcat(DE_df[:,:PL], FR_df[:,:PL], NL_df[:,:PL], SE_df[:,:PL], NO_df[:,:PL], Pumpspeicher[:,:PL], PS_Speicherstand[:,:PL], Batteriespeicher[:,:PL], BS_Speicherstand[:,:PL], Wasserstoffspeicher[:,:PL], WS_Speicherstand[:,:PL], Nachfrage_df[:,:PL], Strompreise[:,:PL]), 
+     ["DE_ex", "FR_ex", "NL_ex", "SE_ex", "NO_ex", "PS_Einspeicherung", "PS_Speicherstand", "BS_Einspeicherung", "BS_Speicherstand", "WS_Einspeicherung", "WS_Speicherstand", "Nachfrage", "Strompreis"]))
    
 SE = hcat(SE_df, DataFrame(
-     hcat(DE_df[:,:SE], FR_df[:,:SE], NL_df[:,:SE], PL_df[:,:SE], NO_df[:,:SE], Pumpspeicher[:,:SE], Speicherstand[:,:SE], Nachfrage_df[:,:SE], Strompreise[:,:SE]), 
-     ["DE_ex", "FR_ex", "NL_ex", "PL_ex", "NO_ex", "Einspeicherung", "Speicherstand", "Nachfrage", "Strompreis"]))
+     hcat(DE_df[:,:SE], FR_df[:,:SE], NL_df[:,:SE], PL_df[:,:SE], NO_df[:,:SE], Pumpspeicher[:,:SE], PS_Speicherstand[:,:SE], Batteriespeicher[:,:SE], BS_Speicherstand[:,:SE], Wasserstoffspeicher[:,:SE], WS_Speicherstand[:,:SE], Nachfrage_df[:,:SE], Strompreise[:,:SE]), 
+     ["DE_ex", "FR_ex", "NL_ex", "PL_ex", "NO_ex", "PS_Einspeicherung", "PS_Speicherstand", "BS_Einspeicherung", "BS_Speicherstand", "WS_Einspeicherung", "WS_Speicherstand", "Nachfrage", "Strompreis"]))
    
 NO = hcat(NO_df, DataFrame(
-     hcat(DE_df[:,:NO], FR_df[:,:NO], NL_df[:,:NO], PL_df[:,:NO], SE_df[:,:NO], Pumpspeicher[:,:NO], Speicherstand[:,:NO], Nachfrage_df[:,:NO], Strompreise[:,:NO]), 
-     ["DE_ex", "FR_ex", "NL_ex", "PL_ex", "SE_ex", "Einspeicherung", "Speicherstand", "Nachfrage", "Strompreis"]))
+     hcat(DE_df[:,:NO], FR_df[:,:NO], NL_df[:,:NO], PL_df[:,:NO], SE_df[:,:NO], Pumpspeicher[:,:NO], PS_Speicherstand[:,:NO], Batteriespeicher[:,:NO], BS_Speicherstand[:,:NO], Wasserstoffspeicher[:,:NO], WS_Speicherstand[:,:NO], Nachfrage_df[:,:NO], Strompreise[:,:NO]), 
+     ["DE_ex", "FR_ex", "NL_ex", "PL_ex", "SE_ex", "PS_Einspeicherung", "PS_Speicherstand", "BS_Einspeicherung", "BS_Speicherstand", "WS_Einspeicherung", "WS_Speicherstand", "Nachfrage", "Strompreis"]))
 
 
 # Export der vorbereiteten DataFrames in Excel
@@ -228,6 +238,10 @@ XLSX.writetable("Ergebnisse.xlsx", overwrite=true,
         "SE" => SE,
         "NO" => NO,
         "Strompreise" => Strompreise, 
-        "Pumpspeicher_Einspeicherung" => Pumpspeicher, 
-        "Speicherstand" => Speicherstand,
+        "PS_Einspeicherung" => Pumpspeicher, 
+        "PS_Speicherstand" => PS_Speicherstand,
+        "BS_Einspeicherung" => Batteriespeicher,
+        "BS_Speicherstand" => BS_Speicherstand,
+        "WS_Einspeicherung" => Wasserstoffspeicher,
+        "WS_Speicherstand" => WS_Speicherstand,
         "Nachfrage" => Nachfrage_df)
