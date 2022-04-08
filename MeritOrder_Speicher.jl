@@ -2,6 +2,7 @@
 using JuMP
 using CPLEX
 using XLSX, DataFrames
+using Plots
 
 # Info: Installierte Kapazität = maximal abrufbare Leistung; 
 #       Leistung = eingesetzte Kapazität zu jeder Stunde
@@ -27,7 +28,7 @@ n = size(Kapazität_df,2)
 s = n - l
 
 # Wenn weniger Stunden betrachtet werden sollen hier eingeben, max. 8760
-t = 8760
+t = 300
 
 # Die Tabellen Stromlast und Verfügbarkeit von Wind & Sonne wird auf den zu betrachtenden Zeitraum reduziert
 Nachfrage_df = Nachfrage_df[1:t,:]
@@ -184,8 +185,6 @@ z_results = @show value.(z)
 obj_value = @show objective_value(model) # Minimierte Gesamtkosten der Stromerzeugung im gesamten Jahr
 el_price = @show shadow_price.(c1)*(-1) # Strompreis in jeder Stunde des Jahres
 
-
-
 Ueberschriften = ["Kernenergie", "Braunkohle_+", "Braunkohle_0", "Braunkohle_-", "Steinkohle_+", "Steinkohle_0", "Steinkohle_-", "Erdgas_+", "Erdgas_0", "Erdgas_-", "Erdöl", "Windkraft", "PV", "Biomasse", "Wasserkraft", "DE_im", "FR_im", "NL_im", "PL_im", "SE_im", "NO_im", "Pumpspeicher_Ausspeicherung", "Batteriespeicher_Ausspeicherung", "Wasserstoffspeicher_Ausspeicherung"]
 
 # Ausgabe der Ergebnisse je Land 
@@ -254,10 +253,35 @@ XLSX.writetable("Ergebnisse.xlsx", overwrite=true,
         "NO" => NO,
         "Strompreise" => Strompreise, 
         "Emissionen" => Emissionen,
-        "Nachfrage" => Nachfrage_df)
+        "Nachfrage" => Nachfrage_df
         #"PS_Einspeicherung" => Pumpspeicher, 
         #"PS_Speicherstand" => PS_Speicherstand,
         #"BS_Einspeicherung" => Batteriespeicher,
         #"BS_Speicherstand" => BS_Speicherstand,
         #"WS_Einspeicherung" => Wasserstoffspeicher,
         #"WS_Speicherstand" => WS_Speicherstand,
+)
+
+# Strompreisentwicklung je Land
+Strompreise_Plot = plot(xlabel="Stunde", ylabel="Strompreis (€/MWh)")
+    function Preise(l)
+        preise_results = plot!(Strompreise_Plot, t_set, Strompreise[:,l], label="Strompreise $l")
+        return preise_results
+    end
+
+    for l in l_set
+        Preise(l)
+    end
+Strompreise_Plot
+
+# Speicherstand für alle Speicherarten eines Landes 
+function Speicherstand(l)
+    Speicherstand_Plot = plot(xlabel="Stunde", ylabel="Speicherlevel (MWh)")
+        speicher_results = plot!(Speicherstand_Plot, t_set, PS_Speicherstand[:,l], label="Pumpspeicher $l", linewidth = 2)#, color = "turquoise")
+        plot!(Speicherstand_Plot, t_set, BS_Speicherstand[:,l], label="Batteriespeicher $l", linewidth = 2)#, color = "purple")
+        plot!(Speicherstand_Plot, t_set, WS_Speicherstand[:,l], label="Wassersoff $l", linewidth = 2)#, color = "green")
+        
+        return speicher_results
+end
+# Hier das Land eintragen, für welches der Speicherstand abgerufen werden soll
+Speicherstand("FR")
