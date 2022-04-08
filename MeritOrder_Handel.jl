@@ -21,7 +21,7 @@ k = size(Kraftwerke_df,1)
 l = size(Nachfrage_df,2)
 
 # Wenn weniger Stunden betrachtet werden sollen max. 8760
-t = 24
+t = 12
 
 # Stromlast und Verfügbarkeit von Wind & Sonne, auf den zu betrachtenden Zeitraum reduziert
 Nachfrage_df = Nachfrage_df[1:t,:]
@@ -136,20 +136,13 @@ x_results = @show value.(x) #Matrix aller Leistungen. x_results hat drei Dimensi
 obj_value = @show objective_value(model) #Minimierte Gesamtkosten der Stromerzeugung im gesamten Jahr
 el_price = @show shadow_price.(c1)*(-1) #Strompreis in jeder Stunde des Jahres
 
-# Die Ergebnisse werden als Excellisten exportiert, jedes Land als extra Excel. Inhalt: verwendete Leistung je Stunde und Kraftwerkskategorie
-for z in l_set
-    y_results = Array(x_results[:,:,z])
-    #Excelname = "Ergebnisse"*z*".xlsx"
-    z = DataFrame(y_results, k_set)
-end
 
-
-
-# Ausgabe der Ergebnisse in einer Excelliste
+# Ausgabe der Ergebnisse je Land 
+DE = DataFrame(Array(x_results[:,:,"DE"]), k_set)
+FR = DataFrame(Array(x_results[:,:,"FR"]), k_set)
+NL = DataFrame(Array(x_results[:,:,"NL"]), k_set)
+# Ausgabe der Strompreise je Land
 Strompreise = DataFrame(Array(el_price[:,:]), l_set)
 
-for q in l_set
-    q = DataFrame(Array(x_results[:,:,q]), k_set)
-end
 # Die Namen der Tabellenblätter müssen händisch angepasst werden, falls Länder hinzugefügt werden
 XLSX.writetable("Ergebnisse.xlsx", overwrite=true, "DE" => DE, "FR" => FR, "NL" => NL, "Strompreise" => Strompreise)
