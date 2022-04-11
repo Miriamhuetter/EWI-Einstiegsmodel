@@ -2,7 +2,7 @@
 using JuMP
 using CPLEX
 using XLSX, DataFrames
-using Plots
+using Plots; pyplot()
 
 # Info: Installierte Kapazität = maximal abrufbare Leistung; 
 #       Leistung = eingesetzte Kapazität zu jeder Stunde
@@ -55,6 +55,7 @@ Volumenfaktor = Dict()
     for s in s_set
         push!(Volumenfaktor, s => Dict(Volumenfaktor_df[:,:Land] .=> Volumenfaktor_df[:,s]),) 
     end
+    push!(Volumenfaktor, "Speicherwasser" => Dict(Volumenfaktor_df[:,:Land] .=> Volumenfaktor_df[:,"Speicherwasser"])) 
 Volumenfaktor
 
 # Kapazitäten dicitionary wird je nach Land und Kraftwerkstyp erstellt
@@ -154,7 +155,7 @@ Nachfrage #Abhängig von Zeit und Land -> fürs Modell
 Kapazität #Abhängig von Kategorie -> fürs Modell
 Verfügbarkeit #Abhängig von Kategorie -> fürs Modell
 Effizienz
-
+spw = "Speicherwasser"
 
 #Zu optimierendes Modell wird erstellt
 model = direct_model(CPLEX.Optimizer())
@@ -162,19 +163,24 @@ set_silent(model)
 
 @variable(model, x[t in t_set, k in k_set , n in n_set] >= 0) # Abgerufene Leistung ist abhängig von der Zeit, dem Kraftwerk und Land  
 @variable(model, 0 <= y[t in t_set, s in s_set, l in l_set] <= Volumenfaktor[s][l] * Kapazität[l][s]) # Variable y überprüft das Speicherlevel: Darf nicht höher sein als installierte Kapazität * Volumenfaktor & muss größer Null sein
-@variable(model, z[t in t_set, l in l_set])
+@variable(model, 0 <= sw[t in t_set, l in l_set] <= Volumenfaktor[spw][l] * Kapazität[l][spw])
+@variable(model, z[t in t_set, l in l_set]) #Emissionen
 @objective(model, Min, sum(Grenzkosten[k]*x[t,k,n] for t in t_set, k in k_set, n in n_set)) # Zielfunktion: Multipliziere für jede Kraftwerkskategorie die Grenzkosten mit der eingesetzten Leistung in jeder Stunde und abhängig vom Land -> Minimieren
-@constraint(model, c1[t in t_set, l in l_set], sum(x[t,k,l] * Effizienz[k][l] for k in k_set) == Nachfrage[l][t] + sum(x[t,l,j] for j in l_set) + sum(x[t,l,s] / Wirkungsgrad[s] for s in s_set)) # Summe der eingesetzten Leistung soll mit der Effizienz multipliziert werden (für eigenen Verbrauch ist die Effizienz 1, für Handel ist sie kleiner -> Grund Eigenverbrauch soll vorrangig passieren)...
+@constraint(model, Bilanz[t in t_set, l in l_set], sum(x[t,k,l] * Effizienz[k][l] for k in k_set) == Nachfrage[l][t] + sum(x[t,l,j] for j in l_set) + sum(x[t,l,s] / Wirkungsgrad[s] for s in s_set)) # Summe der eingesetzten Leistung soll mit der Effizienz multipliziert werden (für eigenen Verbrauch ist die Effizienz 1, für Handel ist sie kleiner -> Grund Eigenverbrauch soll vorrangig passieren)...
 # ... auf die eigene Nachfrage des Landes wird die Summe die exportiert wird draufgerechnet, da dies extra produziert wird. Das findet nur für Kraftwerke statt, die auch Länder sind. 
 # ... Zusätzlich wird überschüssige Energie eines Landes eingespeichert. Die Einspeicherung wird mit einem Wirkungsgrad (Verluste) versehen und auf die Nachfrage addiert. 
 # ... Die Ausspeicherung ist auf der linken Gleichheitszeichen im x enthalten, da die Ausspeicherung wie die Stromerzeugung eines Kraftwerkes behandelt wird.
-@constraint(model, c2[t in t_set, k in k_set, l in l_set], x[t,k,l] .<= Kapazität[l][k]*Verfügbarkeit[k][l][t]) # Die Leistung je Kraftwerkskategorie muss kleiner sein als die Kapazität...
+@constraint(model, Kapazität_Kraftwerke[t in t_set, k in k_set, l in l_set], x[t,k,l] .<= Kapazität[l][k]*Verfügbarkeit[k][l][t]) # Die Leistung je Kraftwerkskategorie muss kleiner sein als die Kapazität...
 #...der Kraftwerkskategorie in dem betrachteten Land multipliziert mit der Verfügbarkeit -> Verwendung der Inhalte aus den Dictionaries. Speicher hier enthalten, diese werden im Falle der Ausspeicherung auf die zur Verfügung stehende Kapazität beschränkt
-@constraint(model, c3[t in t_set, l in l_set, s in s_set], x[t,l,s] .<= Kapazität[s][l]) # Nebenbedingung 3 beschränkt die Einspeicherung auf die verfügbare Kapazität des Speichers je Land
-@constraint(model, c4[t in t_set[2:end], s in s_set, l in l_set], y[t,s,l] == y[t-1,s,l] + x[t-1,l,s] - x[t-1,s,l]) # NB 4 gibt das Speicherlevel aus. Das Speicherlevel der betrachteten Stunde muss die Summe sein aus dem Level der vorherhigen Stunde + Einspeicherung - Ausspeicherung
-@constraint(model, c5[s in s_set, l in l_set], y[1,s,l] == y[t,s,l] + x[t,l,s] - x[t,s,l]) # NB 5 sagt, dass das Speicherlevel zu Stunde 1 gleich dem Speicherstand der letzten betrachteten Stunde sein muss
-@constraint(model, c6[s in s_set, l in l_set], y[1,s,l] == 0.5*Volumenfaktor[s][l] * Kapazität[l][s]) # NB 5 sagt, dass das Speicherlevel zur Stunde Null der halben Kapazität entsprechen muss
-@constraint(model, c7[t in t_set, l in l_set], z[t,l] == sum(x[t,k,l] * Emissionsfaktor_el[k] for k in k_set))
+@constraint(model, Kapazität_Speicher[t in t_set, l in l_set, s in s_set], x[t,l,s] .<= Kapazität[s][l]) # Nebenbedingung 3 beschränkt die Einspeicherung auf die verfügbare Kapazität des Speichers je Land
+@constraint(model, Speicherstand_1[t in t_set[2:end], s in s_set, l in l_set], y[t,s,l] == y[t-1,s,l] + x[t-1,l,s] - x[t-1,s,l]) # NB 4 gibt das Speicherlevel aus. Das Speicherlevel der betrachteten Stunde muss die Summe sein aus dem Level der vorherhigen Stunde + Einspeicherung - Ausspeicherung
+@constraint(model, Speicherstand_2[s in s_set, l in l_set], y[1,s,l] == y[t,s,l] + x[t,l,s] - x[t,s,l]) # NB 5 sagt, dass das Speicherlevel zu Stunde 1 gleich dem Speicherstand der letzten betrachteten Stunde sein muss
+@constraint(model, Speicherstand_3[s in s_set, l in l_set], y[1,s,l] == 0.5*Volumenfaktor[s][l] * Kapazität[l][s]) # NB 5 sagt, dass das Speicherlevel zur Stunde Null der halben Kapazität entsprechen muss
+@constraint(model, Emissionen[t in t_set, l in l_set], z[t,l] == sum(x[t,k,l] * Emissionsfaktor_el[k] for k in k_set))
+
+@constraint(model, Speicherstand_1W[t in t_set[2:end], l in l_set], sw[t,l] == sw[t-1,l] - x[t-1,spw,l] + 0.0006*Volumenfaktor[spw][l] * Kapazität[l][spw]) # NB 4 gibt das Speicherlevel aus. Das Speicherlevel der betrachteten Stunde muss die Summe sein aus dem Level der vorherhigen Stunde + Einspeicherung - Ausspeicherung
+@constraint(model, Speicherstand_2W[l in l_set], sw[1,l] == sw[t,l] - x[t,spw,l] + 0.0006*Volumenfaktor[spw][l] * Kapazität[l][spw]) # NB 5 sagt, dass das Speicherlevel zu Stunde 1 gleich dem Speicherstand der letzten betrachteten Stunde sein muss
+@constraint(model, Speicherstand_3W[l in l_set], sw[1,l] == 0.5*Volumenfaktor[spw][l] * Kapazität[l][spw]) # NB 5 sagt, dass das Speicherlevel zur Stunde Null der halben Kapazität entsprechen muss
 
 optimize!(model)
 termination_status(model)
@@ -182,10 +188,11 @@ termination_status(model)
 x_results = @show value.(x) # Matrix aller abgerufenen Leistungen. x_results hat drei Dimensionen
 y_results = @show value.(y) # Matrix aller abgerufenen Speicherstände
 z_results = @show value.(z)
+sw_results = @show value.(sw)
 obj_value = @show objective_value(model) # Minimierte Gesamtkosten der Stromerzeugung im gesamten Jahr
-el_price = @show shadow_price.(c1)*(-1) # Strompreis in jeder Stunde des Jahres
+el_price = @show shadow_price.(Bilanz)*(-1) # Strompreis in jeder Stunde des Jahres
 
-Ueberschriften = ["Kernenergie", "Braunkohle_+", "Braunkohle_0", "Braunkohle_-", "Steinkohle_+", "Steinkohle_0", "Steinkohle_-", "Erdgas_+", "Erdgas_0", "Erdgas_-", "Erdöl", "Windkraft", "PV", "Biomasse", "Wasserkraft", "DE_im", "FR_im", "NL_im", "PL_im", "SE_im", "NO_im", "AT_im", "Pumpspeicher_Ausspeicherung", "Batteriespeicher_Ausspeicherung", "Wasserstoffspeicher_Ausspeicherung"]
+Ueberschriften = ["Kernenergie", "Braunkohle_+", "Braunkohle_0", "Braunkohle_-", "Steinkohle_+", "Steinkohle_0", "Steinkohle_-", "Erdgas_+", "Erdgas_0", "Erdgas_-", "Erdöl", "Windkraft", "PV", "Biomasse", "Laufwasser", "Speicherwasser", "DE_im", "FR_im", "NL_im", "PL_im", "SE_im", "NO_im", "AT_im", "Pumpspeicher_Ausspeicherung", "Batteriespeicher_Ausspeicherung", "Wasserstoffspeicher_Ausspeicherung"]
 
 # Ausgabe der Ergebnisse je Land 
 # Optimierter Kraftwerkseinsatz je Land mit Import (alles was aus anderen Ländern nach bspw. D kommt)
@@ -209,6 +216,8 @@ PS_Speicherstand = DataFrame(Array(y_results[:,"Pumpspeicher",:]), l_set)
 BS_Speicherstand = DataFrame(Array(y_results[:,"Batteriespeicher",:]), l_set)
 
 WS_Speicherstand = DataFrame(Array(y_results[:,"Wasserstoffspeicher",:]), l_set)
+
+SW_Speicherstand = DataFrame(Array(sw_results[:,:]), l_set)
 
 # Ausgabe der Strompreise je Land
 Strompreise = DataFrame(Array(el_price[:,:]), l_set)
@@ -259,7 +268,8 @@ XLSX.writetable("Ergebnisse.xlsx", overwrite=true,
         "AT" => AT,
         "Strompreise" => Strompreise, 
         "Emissionen" => Emissionen,
-        "Nachfrage" => Nachfrage_df
+        "Nachfrage" => Nachfrage_df,
+        "Speicherwasser" => SW_Speicherstand
         #"PS_Einspeicherung" => Pumpspeicher, 
         #"PS_Speicherstand" => PS_Speicherstand,
         #"BS_Einspeicherung" => Batteriespeicher,
@@ -282,13 +292,27 @@ Strompreise_Plot
 
 # Speicherstand für alle Speicherarten eines Landes 
 function Speicherstand(l)
-    Speicherstand_Plot = plot(xlabel="Stunde", ylabel="Speicherlevel (MWh)")
-        speicher_results = plot!(Speicherstand_Plot, t_set, PS_Speicherstand[:,l], label="Pumpspeicher $l", linewidth = 2)#, color = "turquoise")
+    Speicherstand_Plot = plot(xlabel="Stunde", ylabel="Speicherlevel (MWh)", legend=:top, right_margin=20Plots.mm)
+        plot!(Speicherstand_Plot, t_set, PS_Speicherstand[:,l], label="Pumpspeicher $l", linewidth = 2)#, color = "turquoise")
         plot!(Speicherstand_Plot, t_set, BS_Speicherstand[:,l], label="Batteriespeicher $l", linewidth = 2)#, color = "purple")
         plot!(Speicherstand_Plot, t_set, WS_Speicherstand[:,l], label="Wassersoff $l", linewidth = 2)#, color = "green")
-        
-        return speicher_results
+        plot!(Speicherstand_Plot, t_set, SW_Speicherstand[:,l], label="Speicherwasser $l", linewidth = 2)
+        Strompreisachse = twinx()
+        plot!(Strompreisachse, t_set, Strompreise[:,l], grid = false, ylabel = "Strompreis (€/MWh)", label="Strompreis $l", color = "black", linewidth = 0.7)
+        return Speicherstand_Plot
 end
+
 # Hier das Land eintragen, für welches der Speicherstand abgerufen werden soll
-Speicherstand("AT")
-#Strompreis noch mit reinbringen 
+Speicherstand("FR")
+#savefig("LAND.svg")
+
+function Emissions(l)
+    Emissionen_Plot = plot(xlabel="Stunde", ylabel="Emissionen (Tonnen CO2)", legend=:topleft, right_margin=20Plots.mm)
+    plot!(Emissionen_Plot, t_set, Emissionen[:,l], label = "Emissionen $l")
+    Strompreisachse = twinx()
+    plot!(Strompreisachse, t_set, Strompreise[:,l], grid = false, ylabel = "Strompreis (€/MWh)", label="Strompreis $l", color = "black", linewidth = 0.7)
+    return Emissionen_Plot
+end
+
+Emissions("FR")
+
