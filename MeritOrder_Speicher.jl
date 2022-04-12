@@ -2,7 +2,8 @@
 using JuMP
 using CPLEX
 using XLSX, DataFrames
-using Plots; pyplot()
+using Plots, PlotlyJS
+
 
 # Info: Installierte Kapazität = maximal abrufbare Leistung; 
 #       Leistung = eingesetzte Kapazität zu jeder Stunde
@@ -28,7 +29,7 @@ n = size(Kapazität_df,2)
 s = n - l
 
 # Wenn weniger Stunden betrachtet werden sollen hier eingeben, max. 8760
-t = 8760
+t = 48
 
 # Die Tabellen Stromlast und Verfügbarkeit von Wind & Sonne wird auf den zu betrachtenden Zeitraum reduziert
 Nachfrage_df = Nachfrage_df[1:t,:]
@@ -164,7 +165,7 @@ set_silent(model)
 @variable(model, x[t in t_set, k in k_set , n in n_set] >= 0) # Abgerufene Leistung ist abhängig von der Zeit, dem Kraftwerk und Land  
 @variable(model, 0 <= y[t in t_set, s in s_set, l in l_set] <= Volumenfaktor[s][l] * Kapazität[l][s]) # Variable y überprüft das Speicherlevel: Darf nicht höher sein als installierte Kapazität * Volumenfaktor & muss größer Null sein
 @variable(model, 0 <= sw[t in t_set, l in l_set] <= Volumenfaktor[spw][l] * Kapazität[l][spw])
-@variable(model, z[t in t_set, l in l_set]) #Emissionen
+@variable(model, z[t in t_set, l in l_set]) # Emissionen
 @objective(model, Min, sum(Grenzkosten[k]*x[t,k,n] for t in t_set, k in k_set, n in n_set)) # Zielfunktion: Multipliziere für jede Kraftwerkskategorie die Grenzkosten mit der eingesetzten Leistung in jeder Stunde und abhängig vom Land -> Minimieren
 @constraint(model, Bilanz[t in t_set, l in l_set], sum(x[t,k,l] * Effizienz[k][l] for k in k_set) == Nachfrage[l][t] + sum(x[t,l,j] for j in l_set) + sum(x[t,l,s] / Wirkungsgrad[s] for s in s_set)) # Summe der eingesetzten Leistung soll mit der Effizienz multipliziert werden (für eigenen Verbrauch ist die Effizienz 1, für Handel ist sie kleiner -> Grund Eigenverbrauch soll vorrangig passieren)...
 # ... auf die eigene Nachfrage des Landes wird die Summe die exportiert wird draufgerechnet, da dies extra produziert wird. Das findet nur für Kraftwerke statt, die auch Länder sind. 
@@ -277,42 +278,3 @@ XLSX.writetable("Ergebnisse.xlsx", overwrite=true,
         #"WS_Einspeicherung" => Wasserstoffspeicher,
         #"WS_Speicherstand" => WS_Speicherstand,
 )
-
-# Strompreisentwicklung je Land
-Strompreise_Plot = plot(xlabel="Stunde", ylabel="Strompreis (€/MWh)")
-    function Preise(l)
-        preise_results = plot!(Strompreise_Plot, t_set, Strompreise[:,l], label="Strompreise $l")
-        return preise_results
-    end
-
-    for l in l_set
-        Preise(l)
-    end
-Strompreise_Plot
-
-# Speicherstand für alle Speicherarten eines Landes 
-function Speicherstand(l)
-    Speicherstand_Plot = plot(xlabel="Stunde", ylabel="Speicherlevel (MWh)", legend=:top, right_margin=20Plots.mm)
-        plot!(Speicherstand_Plot, t_set, PS_Speicherstand[:,l], label="Pumpspeicher $l", linewidth = 2)#, color = "turquoise")
-        plot!(Speicherstand_Plot, t_set, BS_Speicherstand[:,l], label="Batteriespeicher $l", linewidth = 2)#, color = "purple")
-        plot!(Speicherstand_Plot, t_set, WS_Speicherstand[:,l], label="Wassersoff $l", linewidth = 2)#, color = "green")
-        plot!(Speicherstand_Plot, t_set, SW_Speicherstand[:,l], label="Speicherwasser $l", linewidth = 2)
-        Strompreisachse = twinx()
-        plot!(Strompreisachse, t_set, Strompreise[:,l], grid = false, ylabel = "Strompreis (€/MWh)", label="Strompreis $l", color = "black", linewidth = 0.7)
-        return Speicherstand_Plot
-end
-
-# Hier das Land eintragen, für welches der Speicherstand abgerufen werden soll
-Speicherstand("FR")
-#savefig("LAND.svg")
-
-function Emissions(l)
-    Emissionen_Plot = plot(xlabel="Stunde", ylabel="Emissionen (Tonnen CO2)", legend=:topleft, right_margin=20Plots.mm)
-    plot!(Emissionen_Plot, t_set, Emissionen[:,l], label = "Emissionen $l")
-    Strompreisachse = twinx()
-    plot!(Strompreisachse, t_set, Strompreise[:,l], grid = false, ylabel = "Strompreis (€/MWh)", label="Strompreis $l", color = "black", linewidth = 0.7)
-    return Emissionen_Plot
-end
-
-Emissions("FR")
-
