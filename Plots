@@ -1,0 +1,91 @@
+# In MeritOrderSpeicher unten einfügen Stand 12.04.2022
+
+# Strompreisentwicklung je Land
+Strompreise_Plot = plot(xlabel="Stunde", ylabel="Strompreis (€/MWh)")
+    function Preise(l)
+        preise_results = plot!(Strompreise_Plot, t_set, Strompreise[:,l], label="Strompreise $l")
+        return preise_results
+    end
+
+    for l in l_set
+        Preise(l)
+    end
+Strompreise_Plot
+
+# Speicherstand für alle Speicherarten eines Landes 
+function Speicherstand(l)
+    Speicherstand_Plot = plot(xlabel="Stunde", ylabel="Speicherlevel (MWh)", legend=:top, right_margin=20Plots.mm)
+        plot!(Speicherstand_Plot, t_set, PS_Speicherstand[:,l], label="Pumpspeicher $l", linewidth = 2)#, color = "turquoise")
+        plot!(Speicherstand_Plot, t_set, BS_Speicherstand[:,l], label="Batteriespeicher $l", linewidth = 2)#, color = "purple")
+        plot!(Speicherstand_Plot, t_set, WS_Speicherstand[:,l], label="Wassersoff $l", linewidth = 2)#, color = "green")
+        plot!(Speicherstand_Plot, t_set, SW_Speicherstand[:,l], label="Speicherwasser $l", linewidth = 2)
+
+        Strompreisachse = twinx()
+        plot!(Strompreisachse, t_set, Strompreise[:,l], grid = false, ylabel = "Strompreis (€/MWh)", label="Strompreis $l", color = "black", linewidth = 0.7)
+        return Speicherstand_Plot
+end
+
+# Hier das Land eintragen, für welches der Speicherstand abgerufen werden soll
+Speicherstand("FR")
+#savefig("LAND.svg")
+
+# Plot um Emissionen und Strompreis je Land anzuzeigen
+function Emissions(l)
+    Emissionen_Plot = plot(xlabel="Stunde", ylabel="Emissionen (Tonnen CO2)", legend=:topleft, right_margin=20Plots.mm)
+    plot!(Emissionen_Plot, t_set, Emissionen[:,l], label = "Emissionen $l")
+
+    Strompreisachse = twinx()
+    plot!(Strompreisachse, t_set, Strompreise[:,l], grid = false, ylabel = "Strompreis (€/MWh)", label="Strompreis $l", color = "black", linewidth = 0.7)
+    return Emissionen_Plot
+end
+
+Emissions("FR")
+
+#Plot für Speicherstand
+function Speicherstand(l)
+
+
+    Speicherstand_Plot = plot(xlabel="Stunde", ylabel="Speicherlevel (MWh)", legend=:top, right_margin=20Plots.mm)
+        plot!(Speicherstand_Plot, t_set, PS_Speicherstand[:,l], label="Pumpspeicher $l", linewidth = 2)#, color = "turquoise")
+        plot!(Speicherstand_Plot, t_set, BS_Speicherstand[:,l], label="Batteriespeicher $l", linewidth = 2)#, color = "purple")
+        plot!(Speicherstand_Plot, t_set, WS_Speicherstand[:,l], label="Wassersoff $l", linewidth = 2)#, color = "green")
+        plot!(Speicherstand_Plot, t_set, SW_Speicherstand[:,l], label="Speicherwasser $l", linewidth = 2)
+
+        Strompreisachse = twinx()
+        plot!(Strompreisachse, t_set, Strompreise[:,l], grid = false, ylabel = "Strompreis (€/MWh)", label="Strompreis $l", color = "black", linewidth = 0.7)
+        return Speicherstand_Plot
+end
+
+
+
+
+
+
+
+
+
+using Plot, PlotlyJS
+function SpeicherstandNEU(l)
+        plot(
+            [
+                scatter(x = t_set, y = PS_Speicherstand[:,l], name="Pumpspeicher $l"),
+                scatter(x = t_set, y = BS_Speicherstand[:,l], name="Batteriespeicher $l"),
+                scatter(x = t_set, y = WS_Speicherstand[:,l], name="Wasserstoff $l"),
+                scatter(x = t_set, y = SW_Speicherstand[:,l], name="Speicherwasser $l"),
+                scatter(x = t_set, y = Strompreise[:,l], name="Strompreis $l", yaxis="y2")
+            ],
+            Layout(
+                title_text="Speicherstand und Strompreis",
+                xaxis_title_text="Stunde",
+                yaxis_title_text="Speicherlevel (MWh)",
+                plot_bgcolor="rgb(238,238,238)",
+                yaxis2=attr(
+                    title="Strompreis (€/MWh)",
+                    color="DarkSlateGrey",
+                    overlaying="y",
+                    side="right"
+                )
+            )
+        )
+    end 
+SpeicherstandNEU("DE")
