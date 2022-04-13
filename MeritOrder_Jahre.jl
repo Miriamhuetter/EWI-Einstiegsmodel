@@ -29,7 +29,7 @@ s = n - l # Anzahl Speicher
 spw = "Speicherwasser"
 
 # Wenn weniger Stunden betrachtet werden sollen hier eingeben, max. 8760
-t = 12
+t = 48
 
 # Die Tabellen Stromlast und Verfügbarkeit von Wind & Sonne wird auf den zu betrachtenden Zeitraum reduziert
 #Nachfrage_df = Nachfrage_df[1:t,:]
@@ -160,7 +160,7 @@ Verfügbarkeit
             push!(Verfügbarkeit[j][c], l => Dict(sv[:,:Stunde] .=> sv[:,l]))
 
             else 
-            push!(Verfügbarkeit[j][c], l => Dict(t_set .=> fill(availability[c],(t))))
+            push!(Verfügbarkeit[j][c], l => Dict(collect(1:8760) .=> fill(availability[c],(8760))))
             end
         end
     end    
@@ -223,6 +223,7 @@ Nachfrage #Abhängig von Zeit und Land -> fürs Modell
 Kapazität #Abhängig von Kategorie -> fürs Modell
 Verfügbarkeit #Abhängig von Kategorie -> fürs Modell
 Effizienz
+
 
 for j in j_set
 #Zu optimierendes Modell wird erstellt
@@ -307,8 +308,8 @@ end
 
 function l_df2(l)
 l2 = DataFrame(
-    hcat(DE_df[:,l*"_im"], FR_df[:,l*"_im"], NL_df[:,l*"_im"], PL_df[:,l*"_im"], SE_df[:,l*"_im"], NO_df[:,l*"_im"], AT_df[:,l*"_im"], Pumpspeicher[:,l], PS_Speicherstand[:,l], Batteriespeicher[:,l], BS_Speicherstand[:,l], Wasserstoffspeicher[:,l], WS_Speicherstand[:,l], Nachfrage_t[:,l], Strompreise[:,l], Emissionen[:,l]),
-    ["DE_ex", "FR_ex", "NL_ex", "PL_ex", "SE_ex", "NO_ex", "AT_ex", "PS_Einspeicherung", "PS_Speicherstand", "BS_Einspeicherung", "BS_Speicherstand", "WS_Einspeicherung", "WS_Speicherstand", "Nachfrage", "Strompreis", "Emissionen"])
+    hcat(DE_df[:,l*"_im"], FR_df[:,l*"_im"], NL_df[:,l*"_im"], PL_df[:,l*"_im"], SE_df[:,l*"_im"], NO_df[:,l*"_im"], AT_df[:,l*"_im"], Pumpspeicher[:,l], PS_Speicherstand[:,l], Batteriespeicher[:,l], BS_Speicherstand[:,l], Wasserstoffspeicher[:,l], WS_Speicherstand[:,l], SW_Speicherstand[:,l], Nachfrage_t[:,l], Strompreise[:,l], Emissionen[:,l]),
+    ["DE_ex", "FR_ex", "NL_ex", "PL_ex", "SE_ex", "NO_ex", "AT_ex", "PS_Einspeicherung", "PS_Speicherstand", "BS_Einspeicherung", "BS_Speicherstand", "WS_Einspeicherung", "WS_Speicherstand", "SW_Speicherstand", "Nachfrage", "Strompreis", "Emissionen"])
 return l2
 end
 
@@ -322,23 +323,26 @@ end
 
 # Export der vorbereiteten DataFrames in Excel
 # Die Namen der Tabellenblätter müssen händisch erweitert werden, falls Länder & Speicher hinzugefügt werden
+
+Index_Länder = Dict(l_set .=> collect(1:l))
+
 XLSX.writetable("Ergebnisse$j.xlsx", overwrite=true, 
-        "DE" => Ergebnisse[1],
-        "FR" => Ergebnisse[2],
-        "NL" => Ergebnisse[3],
-        "PL" => Ergebnisse[4],
-        "SE" => Ergebnisse[5],
-        "NO" => Ergebnisse[6],
-        "AT" => Ergebnisse[7],
-        "Strompreise" => Strompreise, 
+        "DE" => Ergebnisse[Index_Länder["DE"]],    
+        "FR" => Ergebnisse[Index_Länder["FR"]],
+        "NL" => Ergebnisse[Index_Länder["NL"]],
+        "PL" => Ergebnisse[Index_Länder["PL"]],
+        "SE" => Ergebnisse[Index_Länder["SE"]],
+        "NO" => Ergebnisse[Index_Länder["NO"]],
+        "AT" => Ergebnisse[Index_Länder["AT"]],
+        "Strompreise" => Strompreise,
         "Emissionen" => Emissionen,
         "Nachfrage" => Nachfrage_df,
-        "Speicherwasser" => SW_Speicherstand
+        #"Speicherwasser" => SW_Speicherstand
         #"PS_Einspeicherung" => Pumpspeicher, 
         #"PS_Speicherstand" => PS_Speicherstand,
         #"BS_Einspeicherung" => Batteriespeicher,
         #"BS_Speicherstand" => BS_Speicherstand,
         #"WS_Einspeicherung" => Wasserstoffspeicher,
         #"WS_Speicherstand" => WS_Speicherstand,
-)
+        )
 end
